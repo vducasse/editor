@@ -933,6 +933,31 @@ function mergeWallTerrainFill(
   return merged
 }
 
+/**
+ * Tilts a wall's top edge along its length so the `end` side sits taller (or
+ * shorter) than the `start` side — e.g. a knee wall following a single-pitch
+ * roof slope — instead of requiring a non-rectangular footprint. Only
+ * vertices sitting exactly at the flat extruded top (`topY`) move; a
+ * vertex's local X (0 at `start`, `wallLength` at `end`) linearly
+ * interpolates the offset from 0 to `wallNode.endHeightOffset`.
+ */
+function applyWallEndHeightSlope(
+  geometry: THREE.BufferGeometry,
+  wallNode: WallNode,
+  wallLength: number,
+  topY: number,
+): void {
+  const endHeightOffset = wallNode.endHeightOffset
+  if (!endHeightOffset || wallLength < 1e-9) return
+  const position = geometry.getAttribute('position') as THREE.BufferAttribute
+  for (let i = 0; i < position.count; i++) {
+    if (Math.abs(position.getY(i) - topY) > 1e-4) continue
+    const t = THREE.MathUtils.clamp(position.getX(i) / wallLength, 0, 1)
+    position.setY(i, topY + endHeightOffset * t)
+  }
+  position.needsUpdate = true
+}
+
 export function generateExtrudedWall(
   wallNode: WallNode,
   childrenNodes: AnyNode[],
@@ -1019,6 +1044,7 @@ export function generateExtrudedWall(
   // Rotate so extrusion direction (Z) becomes height direction (Y)
   geometry.rotateX(-Math.PI / 2)
   if (Math.abs(localBottom) > 1e-9) geometry.translate(0, localBottom, 0)
+  applyWallEndHeightSlope(geometry, wallNode, L, localBottom + height)
   geometry.computeVertexNormals()
   assignWallMaterialGroups(geometry, wallNode, boundaryEdges, effectiveWallHeight)
   ensureRenderableGeometryAttributes(geometry)

@@ -185,12 +185,14 @@ export default function WallPanel() {
 
   const followsTerrain = node.fillToTerrain === true
   const height = node.height ?? resolvedHeightMeters ?? 2.5
+  const endHeightOffset = node.endHeightOffset ?? 0
   const thickness = node.thickness ?? 0.1
   const curveOffset = getClampedWallCurveOffset(node)
   const maxCurveOffset = getMaxWallCurveOffset(node)
   const unitLabel = getLinearUnitLabel(unit)
   const displayLength = metersToLinearUnit(length, unit)
   const displayHeight = metersToLinearUnit(height, unit)
+  const displayEndHeightOffset = metersToLinearUnit(endHeightOffset, unit)
   const displayThickness = metersToLinearUnit(thickness, unit)
   const displayCurveOffset = metersToLinearUnit(curveOffset, unit)
   const displayMaxCurveOffset = metersToLinearUnit(maxCurveOffset, unit)
@@ -236,6 +238,23 @@ export default function WallPanel() {
           step={0.1}
           unit={unitLabel}
           value={Math.round(displayHeight * 100) / 100}
+        />
+        <SliderControl
+          label="End height offset"
+          max={metersToLinearUnit(3, unit)}
+          min={-metersToLinearUnit(3, unit)}
+          onChange={(v) =>
+            handleUpdate({
+              endHeightOffset: linearControlValueToMeters(v, unit, {
+                maxMeters: 3,
+                minMeters: -3,
+              }),
+            })
+          }
+          precision={2}
+          step={0.1}
+          unit={unitLabel}
+          value={Math.round(displayEndHeightOffset * 100) / 100}
         />
         <div className="px-1 font-medium text-[10px] text-muted-foreground/80 uppercase tracking-wider">
           Base
