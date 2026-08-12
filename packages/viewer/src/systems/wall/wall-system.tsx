@@ -947,8 +947,13 @@ function applyWallEndHeightSlope(
   wallLength: number,
   topY: number,
 ): void {
-  const endHeightOffset = wallNode.endHeightOffset
-  if (!endHeightOffset || wallLength < 1e-9) return
+  const rawOffset = wallNode.endHeightOffset
+  console.log('[applyWallEndHeightSlope] called', { rawOffset, wallLength, topY, height: wallNode.height })
+  if (!rawOffset || wallLength < 1e-9) {
+    console.log('[applyWallEndHeightSlope] early return', { rawOffset, wallLength })
+    return
+  }
+  const endHeightOffset = Math.max(0, rawOffset)
   const position = geometry.getAttribute('position') as THREE.BufferAttribute
   for (let i = 0; i < position.count; i++) {
     if (Math.abs(position.getY(i) - topY) > 1e-4) continue
