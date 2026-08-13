@@ -153,8 +153,8 @@ export const WallNode = BaseNode.extend({
   // Added to the wall's top only at its `end` point (`start` is unaffected),
   // tilting the top edge along the wall's length so one side is taller than
   // the other — e.g. a knee wall following a single-pitch roof slope.
-  /** Height offset at the end point (default 0). Must be non-negative. */
-  endHeightOffset: z.number().min(0).optional(),
+  /** Height offset at the end point (default 0). */
+  endHeightOffset: z.number().optional(),
   curveOffset: z.number().optional(),
   // Persisted slab-support host — see ItemNode.supportSlabId for the rules.
   supportSlabId: z.string().optional(),

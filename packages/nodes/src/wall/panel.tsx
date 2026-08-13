@@ -305,16 +305,14 @@ export default function WallPanel() {
         <SliderControl
           label="End height offset"
           max={metersToLinearUnit(3, unit)}
-          min={0}
+          min={metersToLinearUnit(-(wallHeightMeters - 0.01), unit)}
           onChange={(v) => {
+            const minMeters = -(wallHeightMeters - 0.01)
             handleUpdate({
-              endHeightOffset: Math.max(
-                0,
-                linearControlValueToMeters(v, unit, {
-                  maxMeters: 3,
-                  minMeters: 0,
-                }),
-              ),
+              endHeightOffset: linearControlValueToMeters(v, unit, {
+                maxMeters: 3,
+                minMeters,
+              }),
             })
           }}
           precision={2}

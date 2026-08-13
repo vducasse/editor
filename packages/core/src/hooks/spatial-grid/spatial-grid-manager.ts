@@ -357,13 +357,14 @@ export class SpatialGridManager {
     if (!wall) return 0
     const dx = wall.end[0] - wall.start[0]
     const dy = wall.end[1] - wall.start[1]
-    return Math.sqrt(dx * dx + dy * dy)
+    return Math.hypot(dx, dy)
   }
 
-  private getWallHeight(wallId: string): number {
+  private getWallHeight(wallId: string, t?: number): number {
     const wall = this.walls.get(wallId)
     if (!wall) return 0
-    if (wall.height != null) return wall.height
+    const offset = (wall.endHeightOffset && t !== undefined) ? wall.endHeightOffset * t : 0
+    if (wall.height != null) return wall.height + offset
 
     const nodes = useScene.getState().nodes
     const levelId = resolveNodeLevelId(wall, nodes)
@@ -381,6 +382,7 @@ export class SpatialGridManager {
       wall,
       getWallPlaneTop(wall, levelId, nodes),
       support.elevation,
+      t
     )
   }
 
@@ -772,9 +774,9 @@ export class SpatialGridManager {
     if (wallLength === 0) {
       return { valid: false, conflictIds: [] }
     }
-    const wallHeight = this.getWallHeight(wallId)
     // Convert local X position to parametric t (0-1)
     const tCenter = localX / wallLength
+    const wallHeight = this.getWallHeight(wallId, tCenter)
     const [itemWidth, itemHeight] = dimensions
     const baseResult = this.getWallGrid(levelId).canPlaceOnWall(
       wallId,
