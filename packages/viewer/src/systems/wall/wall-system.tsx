@@ -13,7 +13,6 @@ import {
   getWallPlaneTop,
   getWallPlanFootprint,
   getWallSurfacePolygon,
-  getWallArcData,
   getWallThickness,
   isCurvedWall,
   type Point2D,
@@ -948,7 +947,6 @@ function applyWallEndHeightSlope(
   wallLength: number,
   topY: number,
   bodyHeight: number,
-  localArc?: { center: { x: number; z: number }; direction: number } | null,
 ): void {
   const rawOffset = wallNode.endHeightOffset
   if (!rawOffset || wallLength < 1e-9) {
@@ -957,52 +955,10 @@ function applyWallEndHeightSlope(
   const minEndHeight = 0.01
   const endHeightOffset = Math.max(rawOffset, -(bodyHeight - minEndHeight))
   const position = geometry.getAttribute('position') as THREE.BufferAttribute
-  
-  const getSignedAngleDiff = (from: number, to: number) => {
-    let diff = to - from
-    while (diff > Math.PI) diff -= Math.PI * 2
-    while (diff < -Math.PI) diff += Math.PI * 2
-    return diff
-  }
-
-  let startAngle = 0
-  let delta = 0
-  if (localArc) {
-    // Determine start angle of the arc from local origin (0,0)
-    startAngle = Math.atan2(0 - localArc.center.z, 0 - localArc.center.x)
-    // Determine end angle of the arc at (wallLength, 0)
-    const endAngle = Math.atan2(0 - localArc.center.z, wallLength - localArc.center.x)
-    delta = getSignedAngleDiff(startAngle, endAngle)
-    
-    // Ensure delta has the correct sign matching the arc direction.
-    // For exact semicircles, getSignedAngleDiff might return -PI when we want PI.
-    if (localArc.direction > 0 && delta < -1e-6) {
-      delta += Math.PI * 2
-    } else if (localArc.direction < 0 && delta > 1e-6) {
-      delta -= Math.PI * 2
-    }
-  }
 
   for (let i = 0; i < position.count; i++) {
     if (Math.abs(position.getY(i) - topY) > 1e-4) continue
-    
-    let t: number
-    if (localArc && Math.abs(delta) > 1e-6) {
-      const px = position.getX(i)
-      const pz = position.getZ(i)
-      const vertexAngle = Math.atan2(pz - localArc.center.z, px - localArc.center.x)
-      let vertexDelta = vertexAngle - startAngle
-
-      // Unwrap vertexDelta so it stays close to the expected angle for this position.
-      // This prevents vertices on the end caps from wrapping around the PI boundary.
-      const expectedDelta = delta * (px / wallLength)
-      while (vertexDelta - expectedDelta > Math.PI) vertexDelta -= Math.PI * 2
-      while (vertexDelta - expectedDelta < -Math.PI) vertexDelta += Math.PI * 2
-
-      t = THREE.MathUtils.clamp(vertexDelta / delta, 0, 1)
-    } else {
-      t = THREE.MathUtils.clamp(position.getX(i) / wallLength, 0, 1)
-    }
+    const t = THREE.MathUtils.clamp(position.getX(i) / wallLength, 0, 1)
     position.setY(i, topY + endHeightOffset * t)
   }
   position.needsUpdate = true
@@ -1091,15 +1047,9 @@ export function generateExtrudedWall(
     bevelEnabled: false,
   })
 
-  // Rotate so extrusion direction (Z) becomes height direction (Y)
-  const arc = isCurvedWall(wallNode) ? getWallArcData(wallNode) : null
-  const localArc = arc
-    ? { center: worldToLocal(arc.center), direction: arc.direction }
-    : null
-
   geometry.rotateX(-Math.PI / 2)
   if (Math.abs(localBottom) > 1e-9) geometry.translate(0, localBottom, 0)
-  applyWallEndHeightSlope(geometry, wallNode, L, localBottom + height, height, localArc)
+  applyWallEndHeightSlope(geometry, wallNode, L, localBottom + height, height)
   geometry.computeVertexNormals()
   assignWallMaterialGroups(geometry, wallNode, boundaryEdges, effectiveWallHeight)
   ensureRenderableGeometryAttributes(geometry)
