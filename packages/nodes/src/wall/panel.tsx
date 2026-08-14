@@ -243,7 +243,7 @@ export default function WallPanel() {
   const displayCurveOffset = metersToLinearUnit(curveOffset, unit)
   const displayMaxCurveOffset = metersToLinearUnit(maxCurveOffset, unit)
   const curveOffsetLimit = Math.max(0.01, maxCurveOffset)
-  const wallHeightMeters = height
+  const wallHeightMeters = resolvedHeightMeters ?? height
 
   const skirting = { ...WALL_SKIRTING_DEFAULT, ...(node.skirting ?? {}) }
   const crown = { ...WALL_CROWN_DEFAULT, ...(node.crown ?? {}) }

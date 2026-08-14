@@ -1,4 +1,5 @@
 import type { WallNode } from '@pascal-app/core'
+import { readHostWallCeiling, type WallCeilingSceneReader } from '../shared/wall-opening-ceiling'
 
 /**
  * Keep the door handle at the same relative height when the door is resized:
@@ -46,14 +47,44 @@ export function clampToWall(
   localX: number,
   width: number,
   height: number,
-): { clampedX: number; clampedY: number } {
+  scene: WallCeilingSceneReader,
+): { clampedX: number; clampedY: number; fits: boolean } {
   const dx = wallNode.end[0] - wallNode.start[0]
   const dz = wallNode.end[1] - wallNode.start[1]
-  const wallLength = Math.sqrt(dx * dx + dz * dz)
+  const wallLength = Math.hypot(dx, dz)
 
-  const clampedX = Math.max(width / 2, Math.min(wallLength - width / 2, localX))
+  const minX = width / 2
+  const maxX = wallLength - width / 2
+
+  function checkFits(testX: number) {
+    const leftHeight = readHostWallCeiling(wallNode.id, scene, testX - width / 2)
+    const rightHeight = readHostWallCeiling(wallNode.id, scene, testX + width / 2)
+    return leftHeight >= height && rightHeight >= height
+  }
+
+  let clampedX = Math.max(minX, Math.min(maxX, localX))
   const clampedY = height / 2 // Doors always sit at floor level
-  return { clampedX, clampedY }
+  
+  let fits = checkFits(clampedX)
+
+  if (!fits) {
+    // Try sliding left/right by steps up to width/2
+    const step = 0.1
+    for (let offset = step; offset <= width / 2; offset += step) {
+      if (clampedX - offset >= minX && checkFits(clampedX - offset)) {
+        clampedX -= offset
+        fits = true
+        break
+      }
+      if (clampedX + offset <= maxX && checkFits(clampedX + offset)) {
+        clampedX += offset
+        fits = true
+        break
+      }
+    }
+  }
+
+  return { clampedX, clampedY, fits }
 }
 
 // Wall-child overlap is shared by door + window placement (one source of

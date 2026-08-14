@@ -196,13 +196,17 @@ export const windowFloorplanMoveTarget: FloorplanMoveTarget<WindowNode> = ({ nod
             nodes,
           })
       const snappedLocalX = neighborX ?? snapToHalf(hit.localX)
-      const { clampedX, clampedY } = clampToWall(
+      const sceneReader = {
+        get: (id: AnyNodeId) => nodes[id],
+        nodes: () => nodes,
+      }
+      const { clampedX, clampedY, fits } = clampToWall(
         hit.wall,
         snappedLocalX,
         startLocalY,
         node.width,
         node.height,
-        nodes,
+        sceneReader as any,
       )
 
       // One click per real position step, keyed on the SNAPPED along-wall value

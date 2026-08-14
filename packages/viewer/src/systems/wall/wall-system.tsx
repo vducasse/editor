@@ -947,15 +947,15 @@ function applyWallEndHeightSlope(
   wallNode: WallNode,
   wallLength: number,
   topY: number,
+  bodyHeight: number,
   localArc?: { center: { x: number; z: number }; direction: number } | null,
 ): void {
   const rawOffset = wallNode.endHeightOffset
   if (!rawOffset || wallLength < 1e-9) {
     return
   }
-  const wallHeight = wallNode.height ?? 2.5
   const minEndHeight = 0.01
-  const endHeightOffset = Math.max(rawOffset, -(wallHeight - minEndHeight))
+  const endHeightOffset = Math.max(rawOffset, -(bodyHeight - minEndHeight))
   const position = geometry.getAttribute('position') as THREE.BufferAttribute
   
   const getSignedAngleDiff = (from: number, to: number) => {
@@ -1099,7 +1099,7 @@ export function generateExtrudedWall(
 
   geometry.rotateX(-Math.PI / 2)
   if (Math.abs(localBottom) > 1e-9) geometry.translate(0, localBottom, 0)
-  applyWallEndHeightSlope(geometry, wallNode, L, localBottom + height, localArc)
+  applyWallEndHeightSlope(geometry, wallNode, L, localBottom + height, height, localArc)
   geometry.computeVertexNormals()
   assignWallMaterialGroups(geometry, wallNode, boundaryEdges, effectiveWallHeight)
   ensureRenderableGeometryAttributes(geometry)

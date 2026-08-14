@@ -209,7 +209,11 @@ export const doorFloorplanMoveTarget: FloorplanMoveTarget<DoorNode> = ({ node })
             nodes,
           })
       const snappedLocalX = neighborX ?? snapToHalf(hit.localX)
-      const { clampedX, clampedY } = clampToWall(hit.wall, snappedLocalX, node.width, node.height)
+      const sceneReader = {
+        get: (id: AnyNodeId) => nodes[id],
+        nodes: () => nodes,
+      }
+      const { clampedX, clampedY, fits } = clampToWall(hit.wall, snappedLocalX, node.width, node.height, sceneReader)
 
       // One click per real position step, keyed on the SNAPPED along-wall value
       // so it ticks only when the door actually moves to a new cell.

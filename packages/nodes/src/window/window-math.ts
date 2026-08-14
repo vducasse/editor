@@ -1,5 +1,5 @@
 import type { AnyNode, AnyNodeId, WallNode } from '@pascal-app/core'
-import { resolveWallOpeningCeiling } from '../shared/wall-opening-ceiling'
+import { readHostWallCeiling } from '../shared/wall-opening-ceiling'
 
 /**
  * Default sill height (metres from the floor to the BOTTOM of a window) for a
@@ -49,15 +49,80 @@ export function clampToWall(
   width: number,
   height: number,
   nodes: Readonly<Record<AnyNodeId, AnyNode>>,
-): { clampedX: number; clampedY: number } {
+): { clampedX: number; clampedY: number; fits: boolean } {
   const dx = wallNode.end[0] - wallNode.start[0]
   const dz = wallNode.end[1] - wallNode.start[1]
-  const wallLength = Math.sqrt(dx * dx + dz * dz)
-  const wallHeight = resolveWallOpeningCeiling(wallNode, nodes)
+  const wallLength = Math.hypot(dx, dz)
 
-  const clampedX = Math.max(width / 2, Math.min(wallLength - width / 2, localX))
-  const clampedY = Math.max(height / 2, Math.min(wallHeight - height / 2, localY))
-  return { clampedX, clampedY }
+  const minX = width / 2
+  const maxX = wallLength - width / 2
+
+  const sceneReader = {
+    get: (id: AnyNodeId) => nodes[id],
+    nodes: () => nodes,
+  }
+
+  function checkFits(testX: number, testY: number) {
+    const leftHeight = readHostWallCeiling(wallNode.id, sceneReader, testX - width / 2)
+    const rightHeight = readHostWallCeiling(wallNode.id, sceneReader, testX + width / 2)
+    const topY = testY + height / 2
+    return leftHeight >= topY && rightHeight >= topY
+  }
+
+  let clampedX = Math.max(minX, Math.min(maxX, localX))
+  const leftCeiling = readHostWallCeiling(wallNode.id, sceneReader, clampedX - width / 2)
+  const rightCeiling = readHostWallCeiling(wallNode.id, sceneReader, clampedX + width / 2)
+  const localCeiling = Math.min(leftCeiling, rightCeiling)
+  const clampedYRaw = Math.max(height / 2, Math.min(localCeiling - height / 2, localY))
+  
+  let clampedY = clampedYRaw
+
+  if (width > wallLength) {
+    return { clampedX, clampedY, fits: false }
+  }
+
+  let fits = checkFits(clampedX, clampedY)
+
+  if (!fits) {
+    // If it doesn't fit horizontally, try sliding down first
+    const lowestY = height / 2
+    if (clampedY > lowestY) {
+      // Find maximum Y that fits at current X
+      let lowY = lowestY
+      let highY = clampedY
+      for (let i = 0; i < 15; i++) {
+        const mid = (lowY + highY) / 2
+        if (checkFits(clampedX, mid)) {
+          lowY = mid
+        } else {
+          highY = mid
+        }
+      }
+      if (checkFits(clampedX, lowY)) {
+        clampedY = lowY
+        fits = true
+      }
+    }
+
+    if (!fits) {
+      // Try sliding left/right by steps up to width/2
+      const step = 0.1
+      for (let offset = step; offset <= width / 2; offset += step) {
+        if (clampedX - offset >= minX && checkFits(clampedX - offset, clampedY)) {
+          clampedX -= offset
+          fits = true
+          break
+        }
+        if (clampedX + offset <= maxX && checkFits(clampedX + offset, clampedY)) {
+          clampedX += offset
+          fits = true
+          break
+        }
+      }
+    }
+  }
+
+  return { clampedX, clampedY, fits }
 }
 
 /**

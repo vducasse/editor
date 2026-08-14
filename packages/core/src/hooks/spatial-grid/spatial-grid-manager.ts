@@ -1314,8 +1314,9 @@ export function getWallBaseElevationForNodes(
 export function getWallEffectiveHeightForNodes(
   wall: WallNode,
   nodes: Record<string, AnyNode>,
+  t?: number,
 ): number {
   const levelId = resolveNodeLevelId(wall, nodes)
   const baseElevation = getWallBaseElevationForNodes(wall, nodes)
-  return resolveWallEffectiveHeight(wall, getWallPlaneTop(wall, levelId, nodes), baseElevation)
+  return resolveWallEffectiveHeight(wall, getWallPlaneTop(wall, levelId, nodes), baseElevation, t)
 }
