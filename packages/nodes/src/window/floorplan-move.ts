@@ -93,6 +93,7 @@ export const windowFloorplanMoveTarget: FloorplanMoveTarget<WindowNode> = ({ nod
   // See `doorFloorplanMoveTarget`: off-wall the window free-follows the cursor
   // as a ghost and isn't committable (it needs a wall). Starts true.
   let onWall = true
+  let lastFits = true
   // Alt force-place (last apply's modifier) — lets `canCommit` allow an
   // overlapping placement, matching the 3D move.
   let forcePlace = false
@@ -206,8 +207,9 @@ export const windowFloorplanMoveTarget: FloorplanMoveTarget<WindowNode> = ({ nod
         startLocalY,
         node.width,
         node.height,
-        sceneReader as any,
+        sceneReader,
       )
+      lastFits = fits
 
       // One click per real position step, keyed on the SNAPPED along-wall value
       // so it ticks only when the window actually moves to a new cell.
@@ -253,16 +255,18 @@ export const windowFloorplanMoveTarget: FloorplanMoveTarget<WindowNode> = ({ nod
       if (!onWall || !lastValid) return false
       const live = useScene.getState().nodes[nodeId] as WindowNode | undefined
       if (live?.type !== 'window') return false
-      // Block on overlap UNLESS Alt force-places — same `placeable` rule as
-      // the 3D move + the shared `resolveOpeningPlacement`.
-      const collides = hasWallChildOverlap(
-        lastValid.parentId,
-        lastValid.position[0],
-        lastValid.position[1],
-        live.width,
-        live.height,
-        live.id,
-      )
+      // Block on overlap or slope height breach UNLESS Alt force-places — same
+      // `placeable` rule as the 3D move + the shared `resolveOpeningPlacement`.
+      const collides =
+        !lastFits ||
+        hasWallChildOverlap(
+          lastValid.parentId,
+          lastValid.position[0],
+          lastValid.position[1],
+          live.width,
+          live.height,
+          live.id,
+        )
       return resolveOpeningPlacement({ collides, forcePlace }).placeable
     },
     commit() {

@@ -1,4 +1,4 @@
-import type { WallNode } from '@pascal-app/core'
+import type { AnyNode, AnyNodeId, WallNode } from '@pascal-app/core'
 import { readHostWallCeiling, type WallCeilingSceneReader } from '../shared/wall-opening-ceiling'
 
 /**
@@ -47,7 +47,7 @@ export function clampToWall(
   localX: number,
   width: number,
   height: number,
-  scene: WallCeilingSceneReader,
+  sceneOrNodes: WallCeilingSceneReader | Readonly<Record<AnyNodeId, AnyNode>>,
 ): { clampedX: number; clampedY: number; fits: boolean } {
   const dx = wallNode.end[0] - wallNode.start[0]
   const dz = wallNode.end[1] - wallNode.start[1]
@@ -55,6 +55,14 @@ export function clampToWall(
 
   const minX = width / 2
   const maxX = wallLength - width / 2
+
+  const scene: WallCeilingSceneReader =
+    typeof (sceneOrNodes as WallCeilingSceneReader).nodes === 'function'
+      ? (sceneOrNodes as WallCeilingSceneReader)
+      : {
+          get: (id: AnyNodeId) => (sceneOrNodes as Readonly<Record<AnyNodeId, AnyNode>>)[id],
+          nodes: () => sceneOrNodes as Readonly<Record<AnyNodeId, AnyNode>>,
+        }
 
   function checkFits(testX: number) {
     const leftHeight = readHostWallCeiling(wallNode.id, scene, testX - width / 2)

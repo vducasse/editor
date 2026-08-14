@@ -1,5 +1,5 @@
 import type { AnyNode, AnyNodeId, WallNode } from '@pascal-app/core'
-import { readHostWallCeiling } from '../shared/wall-opening-ceiling'
+import { readHostWallCeiling, type WallCeilingSceneReader } from '../shared/wall-opening-ceiling'
 
 /**
  * Default sill height (metres from the floor to the BOTTOM of a window) for a
@@ -36,7 +36,10 @@ export function wallLocalToWorld(
 }
 
 /**
- * Clamps window center position so it stays fully within wall bounds. The Y
+ * Clamps window center (localX, localY) within wall bounds.
+ *
+ * Y is bounded to keep the window's bottom above 0 (floor level) AND its top
+ * below the wall's effective ceiling, sampled at the window's center X. The
  * ceiling is the wall's RESOLVED top (storey plane for plane-bound walls,
  * stored height for explicit ones, minus the elected slab base) — `nodes` is
  * required because a plane-bound wall's top lives on its level, not on the
@@ -48,7 +51,7 @@ export function clampToWall(
   localY: number,
   width: number,
   height: number,
-  nodes: Readonly<Record<AnyNodeId, AnyNode>>,
+  sceneOrNodes: Readonly<Record<AnyNodeId, AnyNode>> | WallCeilingSceneReader,
 ): { clampedX: number; clampedY: number; fits: boolean } {
   const dx = wallNode.end[0] - wallNode.start[0]
   const dz = wallNode.end[1] - wallNode.start[1]
@@ -57,10 +60,13 @@ export function clampToWall(
   const minX = width / 2
   const maxX = wallLength - width / 2
 
-  const sceneReader = {
-    get: (id: AnyNodeId) => nodes[id],
-    nodes: () => nodes,
-  }
+  const sceneReader: WallCeilingSceneReader =
+    typeof (sceneOrNodes as WallCeilingSceneReader).nodes === 'function'
+      ? (sceneOrNodes as WallCeilingSceneReader)
+      : {
+          get: (id: AnyNodeId) => (sceneOrNodes as Readonly<Record<AnyNodeId, AnyNode>>)[id],
+          nodes: () => sceneOrNodes as Readonly<Record<AnyNodeId, AnyNode>>,
+        }
 
   function checkFits(testX: number, testY: number) {
     const leftHeight = readHostWallCeiling(wallNode.id, sceneReader, testX - width / 2)
