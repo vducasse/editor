@@ -374,27 +374,8 @@ export class SpatialGridManager {
   private getWallHeight(wallId: string, t?: number): number {
     const wall = this.getWall(wallId)
     if (!wall) return 0
-    const offset = (wall.endHeightOffset && t !== undefined) ? wall.endHeightOffset * t : 0
-    if (wall.height != null) return wall.height + offset
-
-    const nodes = useScene.getState().nodes
-    const levelId = resolveNodeLevelId(wall, nodes)
-    const support = this.getSlabSupportForWall(
-      levelId,
-      wall.start,
-      wall.end,
-      wall.curveOffset ?? 0,
-      wall.thickness,
-      wall.supportSlabId ?? null,
-      undefined,
-      wall.supportOffset,
-    )
-    return resolveWallEffectiveHeight(
-      wall,
-      getWallPlaneTop(wall, levelId, nodes),
-      support.elevation,
-      t
-    )
+    const nodes = useScene.getState().nodes as Record<string, AnyNode>
+    return getWallEffectiveHeightForNodes(wall, nodes, t)
   }
 
   private getCeilingGrid(ceilingId: string): SpatialGrid {
