@@ -1211,6 +1211,7 @@ function wallGeometrySignature(wall: WallNode, nodes: Record<string, any>, level
     // value: it resolves to the storey plane, so it must not alias an
     // explicit height of the same magnitude in the trigger signature.
     wall.height == null ? 'plane' : wall.height.toFixed(4),
+    (wall.endHeightOffset ?? 0).toFixed(4),
     wall.supportSlabId ?? 'elected',
     (wall.supportOffset ?? 0).toFixed(4),
     getClampedWallCurveOffset(wall).toFixed(4),

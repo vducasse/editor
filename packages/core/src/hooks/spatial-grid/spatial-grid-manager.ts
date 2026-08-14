@@ -353,14 +353,12 @@ export class SpatialGridManager {
   }
 
   private getWall(wallId: string): WallNode | undefined {
-    const cached = this.walls.get(wallId)
-    if (cached) return cached
     const fromScene = useScene.getState().nodes[wallId as AnyNodeId]
     if (fromScene && fromScene.type === 'wall') {
       this.walls.set(wallId, fromScene as WallNode)
       return fromScene as WallNode
     }
-    return undefined
+    return this.walls.get(wallId)
   }
 
   private getWallLength(wallId: string): number {
