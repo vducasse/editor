@@ -38,7 +38,10 @@ export function resolveWallTop(
     top = electedBase > 0 ? electedBase + wall.height : wall.height
   }
   if (wall.endHeightOffset && t !== undefined) {
-    top += wall.endHeightOffset * t
+    const bodyHeight = Math.max(0.01, top - electedBase)
+    const minEndHeight = 0.01
+    const clampedOffset = Math.max(wall.endHeightOffset, -(bodyHeight - minEndHeight))
+    top += clampedOffset * t
   }
   return top
 }
