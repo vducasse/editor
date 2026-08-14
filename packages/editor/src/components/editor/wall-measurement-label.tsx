@@ -322,9 +322,11 @@ function buildMeasurementGuide(
     ? getCurvedWallMeasurementPath(wall, miterData, levelWalls)
     : null
   const guidePath: Vec3[] = curvedMeasurementPath
-    ? curvedMeasurementPath.map((point) => {
+    ? curvedMeasurementPath.map((point, index, points) => {
         const localPoint = worldPointToWallLocal(wall, point)
-        return [localPoint[0], height + GUIDE_Y_OFFSET, localPoint[2]]
+        const t = points.length > 1 ? index / (points.length - 1) : 0
+        const h = getWallEffectiveHeightForNodes(wall, nodes, t)
+        return [localPoint[0], h + GUIDE_Y_OFFSET, localPoint[2]]
       })
     : isCurvedWall(wall)
       ? sampleWallCenterline(wall, 24).map((point, index, points) => {
@@ -334,12 +336,14 @@ function buildMeasurementGuide(
               : index === points.length - 1
                 ? endLocal
                 : worldPointToWallLocal(wall, point)
+          const t = points.length > 1 ? index / (points.length - 1) : 0
+          const h = getWallEffectiveHeightForNodes(wall, nodes, t)
 
-          return [localPoint[0], height + GUIDE_Y_OFFSET, localPoint[2]]
+          return [localPoint[0], h + GUIDE_Y_OFFSET, localPoint[2]]
         })
       : [
-          [startLocal[0], height + GUIDE_Y_OFFSET, startLocal[2]],
-          [endLocal[0], height + GUIDE_Y_OFFSET, endLocal[2]],
+          [startLocal[0], getWallEffectiveHeightForNodes(wall, nodes, 0) + GUIDE_Y_OFFSET, startLocal[2]],
+          [endLocal[0], getWallEffectiveHeightForNodes(wall, nodes, 1) + GUIDE_Y_OFFSET, endLocal[2]],
         ]
 
   if (guidePath.length < 2) return null

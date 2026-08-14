@@ -445,9 +445,13 @@ function autoRoomVerticalPlacements(
     const base = roomFloorPlane(wallBases)
     if (base === undefined) continue
 
-    const wallTops = boundaryWalls.map((wall, index) =>
-      resolveWallTop(wall, storeyHeight, wallBases[index] ?? base),
-    )
+    const wallTops = boundaryWalls.flatMap((wall, index) => {
+      const b = wallBases[index] ?? base
+      return [
+        resolveWallTop(wall, storeyHeight, b, 0),
+        resolveWallTop(wall, storeyHeight, b, 1),
+      ]
+    })
     const top = roomCeilingPlane(wallTops)
     if (top === undefined) continue
 
