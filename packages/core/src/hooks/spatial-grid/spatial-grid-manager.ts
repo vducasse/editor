@@ -352,8 +352,19 @@ export class SpatialGridManager {
     return this.wallGrids.get(levelId)!
   }
 
+  private getWall(wallId: string): WallNode | undefined {
+    const cached = this.walls.get(wallId)
+    if (cached) return cached
+    const fromScene = useScene.getState().nodes[wallId as AnyNodeId]
+    if (fromScene && fromScene.type === 'wall') {
+      this.walls.set(wallId, fromScene as WallNode)
+      return fromScene as WallNode
+    }
+    return undefined
+  }
+
   private getWallLength(wallId: string): number {
-    const wall = this.walls.get(wallId)
+    const wall = this.getWall(wallId)
     if (!wall) return 0
     const dx = wall.end[0] - wall.start[0]
     const dy = wall.end[1] - wall.start[1]
@@ -361,7 +372,7 @@ export class SpatialGridManager {
   }
 
   private getWallHeight(wallId: string, t?: number): number {
-    const wall = this.walls.get(wallId)
+    const wall = this.getWall(wallId)
     if (!wall) return 0
     const offset = (wall.endHeightOffset && t !== undefined) ? wall.endHeightOffset * t : 0
     if (wall.height != null) return wall.height + offset
@@ -774,10 +785,17 @@ export class SpatialGridManager {
     if (wallLength === 0) {
       return { valid: false, conflictIds: [] }
     }
+    const [itemWidth, itemHeight] = dimensions
     // Convert local X position to parametric t (0-1)
     const tCenter = localX / wallLength
-    const wallHeight = this.getWallHeight(wallId, tCenter)
-    const [itemWidth, itemHeight] = dimensions
+    const halfW = itemWidth / wallLength / 2
+    const tStart = Math.max(0, Math.min(1, tCenter - halfW))
+    const tEnd = Math.max(0, Math.min(1, tCenter + halfW))
+    const hStart = this.getWallHeight(wallId, tStart)
+    const hEnd = this.getWallHeight(wallId, tEnd)
+    const hCenter = this.getWallHeight(wallId, tCenter)
+    const wallHeight = Math.min(hStart, hEnd, hCenter)
+
     const baseResult = this.getWallGrid(levelId).canPlaceOnWall(
       wallId,
       wallLength,
