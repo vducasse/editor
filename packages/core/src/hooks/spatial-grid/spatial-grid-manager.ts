@@ -14,6 +14,7 @@ import {
   type WallSlabSupport,
 } from '../../systems/slab/slab-support'
 import { DEFAULT_WALL_THICKNESS } from '../../systems/wall/wall-footprint'
+import { getWallCurveLength, isCurvedWall } from '../../systems/wall/wall-curve'
 import { resolveWallEffectiveHeight } from '../../systems/wall/wall-top'
 import { getFloorPlacedFootprints } from './floor-placed-elevation'
 import { SpatialGrid } from './spatial-grid'
@@ -366,6 +367,10 @@ export class SpatialGridManager {
   private getWallLength(wallId: string): number {
     const wall = this.getWall(wallId)
     if (!wall) return 0
+    // Use arc length for curved walls (matching curved slope parameters)
+    if (isCurvedWall(wall)) {
+      return getWallCurveLength(wall)
+    }
     const dx = wall.end[0] - wall.start[0]
     const dy = wall.end[1] - wall.start[1]
     return Math.hypot(dx, dy)

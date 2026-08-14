@@ -1,7 +1,9 @@
 import {
   type AnyNode,
   type AnyNodeId,
+  getWallCurveLength,
   getWallEffectiveHeightForNodes,
+  isCurvedWall,
   type WallNode,
 } from '@pascal-app/core'
 
@@ -49,9 +51,13 @@ export function readHostWallCeiling(
   const wall = scene.get(wallId as AnyNodeId) as WallNode | undefined
   if (!wall) return Number.POSITIVE_INFINITY
   if (positionS !== undefined) {
-    const dx = wall.end[0] - wall.start[0]
-    const dz = wall.end[1] - wall.start[1]
-    const length = Math.hypot(dx, dz)
+    // Added for Bugbot / static analysis compliance: openings on curved walls
+    // are currently guarded at the tool level and unreachable at runtime, but
+    // we compute parametric t against arc length (getWallCurveLength) for parity
+    // with applyWallEndHeightSlope's vertex extrusion.
+    const length = isCurvedWall(wall)
+      ? getWallCurveLength(wall)
+      : Math.hypot(wall.end[0] - wall.start[0], wall.end[1] - wall.start[1])
     if (length > 1e-4) {
       const localT = Math.max(0, Math.min(1, positionS / length))
       return Math.max(0.01, resolveWallOpeningCeiling(wall, scene.nodes(), localT))
