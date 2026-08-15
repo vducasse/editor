@@ -92,6 +92,18 @@ interface SelectionStrategy {
   isValid: (node: AnyNode) => boolean
 }
 
+export const isCutawayRoofTarget = (node: AnyNode): boolean => {
+  if (useViewer.getState().wallMode !== 'cutaway') return false
+  const nodes = useScene.getState().nodes
+  let current: AnyNode | undefined = node
+  while (current) {
+    if (current.type === 'roof' || current.type === 'roof-segment') return true
+    if (!current.parentId) break
+    current = nodes[current.parentId as AnyNodeId]
+  }
+  return false
+}
+
 // Check if a node belongs to the selected level (directly or via wall parent)
 const isNodeOnLevel = (node: AnyNode, levelId: string): boolean => {
   const nodes = useScene.getState().nodes
@@ -285,6 +297,7 @@ const getStrategy = (): SelectionStrategy | null => {
       }
     },
     isValid: (node) => {
+      if (isCutawayRoofTarget(node)) return false
       const validTypes = [
         'wall',
         'fence',

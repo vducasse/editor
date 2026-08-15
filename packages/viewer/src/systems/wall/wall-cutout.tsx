@@ -12,7 +12,7 @@ import {
 } from '@pascal-app/core'
 import { useFrame } from '@react-three/fiber'
 import { useEffect, useRef } from 'react'
-import type { Material } from 'three'
+import type { Group, Material } from 'three'
 import { type Mesh, Vector3 } from 'three/webgpu'
 import useViewer, { type WallMode } from '../../store/use-viewer'
 import {
@@ -211,6 +211,34 @@ export const WallCutout = () => {
               : materials.visible
         }
       })
+
+      const roofs = sceneRegistry.byType.roof
+      if (roofs) {
+        roofs.forEach((roofId) => {
+          const group = sceneRegistry.nodes.get(roofId) as Group | undefined
+          if (!group) return
+          const isDown = wallMode === 'down'
+          const isCutaway = wallMode === 'cutaway'
+          group.visible = !(isDown || isCutaway)
+
+          const mergedMesh = group.getObjectByName('merged-roof') as Mesh | undefined
+          if (!mergedMesh) return
+          const mats = (
+            Array.isArray(mergedMesh.material)
+              ? mergedMesh.material
+              : [mergedMesh.material]
+          ) as Material[]
+          const isTranslucent = wallMode === 'translucent'
+          mats.forEach((mat: Material) => {
+            if (!mat) return
+            if (mat.transparent !== isTranslucent || mat.opacity !== (isTranslucent ? 0.25 : 1.0)) {
+              mat.transparent = isTranslucent
+              mat.opacity = isTranslucent ? 0.25 : 1.0
+              mat.needsUpdate = true
+            }
+          })
+        })
+      }
       lastWallMode.current = wallMode
       lastShading.current = shading
       lastTextures.current = textures
