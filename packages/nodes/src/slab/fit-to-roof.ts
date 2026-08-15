@@ -226,16 +226,14 @@ export function fitSlabPolygonToRoof(
         dutchGabletRake: seg.dutchGabletRake,
       })
 
-      const wExt = seg.wallThickness / 2
+      // Use interior wall face dimensions so the floor slab is enclosed within the walls/roof,
+      // preventing the slab perimeter from penetrating through the exterior wall/facade cladding.
+      const wExt = -seg.wallThickness / 2
       const wV = Math.max(0.01, seg.width + 2 * wExt)
       const dV = Math.max(0.01, seg.depth + 2 * wExt)
-      const autoDrop = wExt * tanTheta
-      const whV = Math.max(0.01, seg.wallHeight - autoDrop)
-      let rhV = activeRh
-      if (activeRh > 0) {
-        rhV = activeRh + autoDrop
-        if (seg.roofType === 'shed') rhV = activeRh + 2 * autoDrop
-      }
+      const autoDrop = 0
+      const whV = Math.max(0.01, seg.wallHeight)
+      const rhV = activeRh
 
       faces = getRoofModuleFaces({
         type: seg.roofType,
