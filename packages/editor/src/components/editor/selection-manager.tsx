@@ -30,6 +30,7 @@ import {
   createMaterial,
   createMaterialFromPresetRef,
   getRoofMaterialArray,
+  isCutawayRoofTarget,
   useViewer,
 } from '@pascal-app/viewer'
 import { useThree } from '@react-three/fiber'
@@ -671,6 +672,7 @@ const SELECTION_STRATEGIES: Record<string, SelectionStrategy> = {
       }
     },
     isValid: (node) => {
+      if (isCutawayRoofTarget(node)) return false
       if (!isNodeInCurrentLevel(node)) return false
       const structureLayer = useEditor.getState().structureLayer
       if (structureLayer === 'zones') {
@@ -737,6 +739,7 @@ const SELECTION_STRATEGIES: Record<string, SelectionStrategy> = {
       useViewer.getState().setSelection({ selectedIds: [] })
     },
     isValid: (node) => {
+      if (isCutawayRoofTarget(node)) return false
       if (!isNodeInCurrentLevel(node)) return false
       // Item: door/window-category items belong to structure phase, not furnish.
       if (node.type === 'item') {
