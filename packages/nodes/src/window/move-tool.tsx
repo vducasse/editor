@@ -389,7 +389,7 @@ const MoveWindowTool: React.FC<{ node: WindowNode }> = ({ node: movingWindowNode
         // component lives in `snapToHalf` (itself mode-aware).
         applySnap: isMagneticSnapActive(),
       })
-      const { clampedX, clampedY } = clampToWall(
+      const { clampedX, clampedY, fits } = clampToWall(
         event.node,
         localX,
         targetLocalY,
@@ -398,7 +398,7 @@ const MoveWindowTool: React.FC<{ node: WindowNode }> = ({ node: movingWindowNode
         useScene.getState().nodes,
       )
 
-      const valid = !hasWallChildOverlap(
+      const valid = fits && !hasWallChildOverlap(
         event.node.id,
         clampedX,
         clampedY,
