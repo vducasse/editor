@@ -449,10 +449,12 @@ function subtractAccessoryCuts(
         workingDeck = nextDeck
       }
 
-      const nextWall = csgEvaluator.evaluate(workingWall, cut, SUBTRACTION) as Brush
-      workingWall.geometry.dispose()
-      prepareBrushForCSG(nextWall)
-      workingWall = nextWall
+      if (cutScope !== 'roof') {
+        const nextWall = csgEvaluator.evaluate(workingWall, cut, SUBTRACTION) as Brush
+        workingWall.geometry.dispose()
+        prepareBrushForCSG(nextWall)
+        workingWall = nextWall
+      }
     } catch (e) {
       console.error(`[${childElem.type}] cut CSG failed:`, e)
     } finally {
@@ -1409,18 +1411,13 @@ export function getRoofSegmentBrushes(node: RoofSegmentNode): RoofSegmentBrushSe
   const deckExtX = wallThickness / 2 + horizontalOverhangX
   const deckExtZ = wallThickness / 2 + horizontalOverhangZ
 
-<<<<<<< HEAD
   const shedRoofSideMaterialRule =
     roofType === 'shed'
       ? (normal: THREE.Vector3) =>
           normal.y > SHINGLE_SURFACE_EPSILON ? 3 : ROOF_EDGE_MATERIAL_INDEX
       : undefined
-  const deckTopGeo = getVol(deckExt, verticalRt, 0, 1, false, shedRoofSideMaterialRule)
-  const deckBotGeo = getVol(deckExt, 0, -5, 0, true)
-=======
-  const deckTopGeo = getVol(deckExtX, deckExtZ, verticalRt, 0, 1, false)
-  const deckBotGeo = getVol(deckExtX, deckExtZ, 0, -5, 0, true)
->>>>>>> 211ff7c1 (feat(roof): support independent width/depth overhang)
+  const deckTopGeo = getVol(deckExtX, deckExtZ, verticalRt, 0, 1, false, shedRoofSideMaterialRule)
+  const deckBotGeo = getVol(deckExtX, deckExtZ, 0, -5, 2, true)
 
   const stSin = shingleThickness * sinTheta
   const stCos = shingleThickness * cosTheta

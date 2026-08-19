@@ -1884,7 +1884,7 @@ export type RoofAccessoryConfig = {
    * / coplanar CSG cases near the gable and shed slopes. Defaults to
    * all three (skylight / dormer genuinely poke through the deck).
    */
-  cutScope?: 'all' | 'wall'
+  cutScope?: 'all' | 'wall' | 'roof'
   /**
    * The kind's own dirty-driven geometry system consumes its dirty
    * marks (door / window via DoorSystem / WindowSystem, which already

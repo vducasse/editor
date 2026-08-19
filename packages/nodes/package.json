@@ -57,5 +57,8 @@
   },
   "license": "MIT",
   "homepage": "https://github.com/pascalorg/editor/tree/main/packages/nodes#readme",
-  "bugs": "https://github.com/pascalorg/editor/issues"
+  "bugs": "https://github.com/pascalorg/editor/issues",
+  "dependencies": {
+    "polygon-clipping": "^0.15.7"
+  }
 }
