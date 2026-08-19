@@ -121,6 +121,8 @@ export const RoofSegmentNode = BaseNode.extend({
   wallThickness: z.number().default(0.1),
   deckThickness: z.number().default(0.1),
   overhang: z.number().default(0.3),
+  overhangWidth: z.number().min(0).max(5).optional(),
+  overhangDepth: z.number().min(0).max(5).optional(),
   shingleThickness: z.number().default(0.05),
   // Shape-specific ratios. Only the pair matching `roofType` is read; the
   // rest are inert. Defined on every segment so the panel can flip
@@ -528,6 +530,21 @@ export type RoofSegmentVisibleTopBounds = {
   depth: number
 }
 
+export function resolveRoofSegmentOverhang(segment: {
+  overhang?: number
+  overhangWidth?: number
+  overhangDepth?: number
+}): { overhangX: number; overhangZ: number } {
+  const base = typeof segment.overhang === 'number' && Number.isFinite(segment.overhang)
+    ? Math.max(0, segment.overhang)
+    : 0.3
+  const overhangX =
+    segment.overhangWidth !== undefined ? finiteNonNegative(segment.overhangWidth) : base
+  const overhangZ =
+    segment.overhangDepth !== undefined ? finiteNonNegative(segment.overhangDepth) : base
+  return { overhangX, overhangZ }
+}
+
 export function getRoofSegmentVisibleTopBounds(
   segment: RoofSegmentNode,
 ): RoofSegmentVisibleTopBounds {
@@ -535,13 +552,16 @@ export function getRoofSegmentVisibleTopBounds(
   const width = finitePositive(segment.width, DEFAULT_ROOF_SEGMENT_WIDTH)
   const depth = finitePositive(segment.depth, DEFAULT_ROOF_SEGMENT_DEPTH)
   const trim = normalizeRoofSegmentTrim({ ...segment, width, depth })
-  const horizontalOverhang = finiteNonNegative(segment.overhang) * cosTheta
-  const deckExt = finiteNonNegative(segment.wallThickness) / 2 + horizontalOverhang
+  const { overhangX, overhangZ } = resolveRoofSegmentOverhang(segment)
+  const horizontalOverhangX = overhangX * cosTheta
+  const horizontalOverhangZ = overhangZ * cosTheta
+  const deckExtX = finiteNonNegative(segment.wallThickness) / 2 + horizontalOverhangX
+  const deckExtZ = finiteNonNegative(segment.wallThickness) / 2 + horizontalOverhangZ
   const shingleOverhang = finiteNonNegative(segment.shingleThickness) * sinTheta
 
-  let xExt = deckExt
-  let frontExt = deckExt
-  let backExt = deckExt
+  let xExt = deckExtX
+  let frontExt = deckExtZ
+  let backExt = deckExtZ
 
   if (
     segment.roofType === 'hip' ||

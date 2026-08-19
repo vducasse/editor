@@ -4,6 +4,7 @@ import {
   getRoofShapeInsets,
   getRoofShapeRatios,
   getSegmentSlopeFrame,
+  resolveRoofSegmentOverhang,
   ROOF_SHAPE_DEFAULTS,
   type RoofSegmentNode,
 } from '@pascal-app/core'
@@ -98,6 +99,8 @@ function roofSurfaceFaceCacheKey(segment: RoofSegmentNode): string {
     segment.wallThickness,
     segment.deckThickness,
     segment.overhang,
+    segment.overhangWidth,
+    segment.overhangDepth,
     segment.shingleThickness,
     segment.pitch,
     segment.gambrelLowerWidthRatio ?? ROOF_SHAPE_DEFAULTS.gambrelLowerWidthRatio,
@@ -111,19 +114,22 @@ function roofSurfaceFaceCacheKey(segment: RoofSegmentNode): string {
 }
 
 function buildRoofSurfaceFaces(segment: RoofSegmentNode): RoofSurfaceFace[] {
-  const { roofType, width, depth, wallHeight, wallThickness, deckThickness, overhang } = segment
+  const { roofType, width, depth, wallHeight, wallThickness, deckThickness } = segment
   const { activeRh, tanTheta, cosTheta, sinTheta } = getSegmentSlopeFrame(segment)
 
   const verticalRt = activeRh > 0 ? deckThickness / cosTheta : deckThickness
-  const horizontalOverhang = (overhang ?? 0) * cosTheta
-  const deckExt = wallThickness / 2 + horizontalOverhang
+  const { overhangX, overhangZ } = resolveRoofSegmentOverhang(segment)
+  const horizontalOverhangX = overhangX * cosTheta
+  const horizontalOverhangZ = overhangZ * cosTheta
+  const deckExtX = wallThickness / 2 + horizontalOverhangX
+  const deckExtZ = wallThickness / 2 + horizontalOverhangZ
   const shingleThickness = segment.shingleThickness ?? 0
   const stSin = shingleThickness * sinTheta
   const stCos = shingleThickness * cosTheta
 
-  const shinBotW = Math.max(0.01, width + 2 * deckExt)
-  const shinBotD = Math.max(0.01, depth + 2 * deckExt)
-  const deckDrop = deckExt * tanTheta
+  const shinBotW = Math.max(0.01, width + 2 * deckExtX)
+  const shinBotD = Math.max(0.01, depth + 2 * deckExtZ)
+  const deckDrop = deckExtZ * tanTheta
   const shinBotWh = wallHeight - deckDrop + verticalRt
 
   let shinBotRh = activeRh

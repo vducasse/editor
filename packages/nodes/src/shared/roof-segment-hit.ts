@@ -1,6 +1,7 @@
 import {
   type AnyNodeId,
   getRoofSegmentSurfaceY,
+  resolveRoofSegmentOverhang,
   type RoofNode,
   type RoofSegmentNode,
   sceneRegistry,
@@ -64,9 +65,9 @@ export function resolveRoofSegmentHit(
 
     if (!firstSegment) firstSegment = { seg, segObj }
 
-    const overhang = seg.overhang ?? 0
-    const halfW = seg.width / 2 + overhang
-    const halfD = seg.depth / 2 + overhang
+    const { overhangX, overhangZ } = resolveRoofSegmentOverhang(seg)
+    const halfW = seg.width / 2 + overhangX
+    const halfD = seg.depth / 2 + overhangZ
     if (Math.abs(local.x) <= halfW && Math.abs(local.z) <= halfD) {
       const surfaceY = getRoofSegmentSurfaceY(seg, local.x, local.z)
       const score = Math.abs(local.y - surfaceY)

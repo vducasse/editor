@@ -15,6 +15,7 @@ import {
   type RoofNode,
   type RoofSegmentNode,
   type RoofType,
+  resolveRoofSegmentOverhang,
   sceneRegistry,
   useLiveNodeOverrides,
   useScene,
@@ -1202,17 +1203,20 @@ export function getRoofSegmentBrushes(node: RoofSegmentNode): RoofSegmentBrushSe
   // same ratio). A hardcoded 0.25 desyncs the gablet from the parameter.
   const baseI = Math.min(width, depth) * node.dutchHipWidthRatio
 
+  const { overhangX, overhangZ } = resolveRoofSegmentOverhang(node)
+
   const getVol = (
     wExt: number,
+    dExt: number,
     vOffset: number,
     baseY: number,
     matIndex: number,
     isVoid: boolean,
   ) => {
     const wV = Math.max(0.01, width + 2 * wExt)
-    const dV = Math.max(0.01, depth + 2 * wExt)
+    const dV = Math.max(0.01, depth + 2 * dExt)
 
-    const autoDrop = wExt * tanTheta
+    const autoDrop = dExt * tanTheta
     const whV = Math.max(0.01, wallHeight - autoDrop + vOffset)
 
     let rhV = activeRh
@@ -1245,22 +1249,24 @@ export function getRoofSegmentBrushes(node: RoofSegmentNode): RoofSegmentBrushSe
     return createGeometryFromFaces(faces, matIndex)
   }
 
-  const wallGeo = getVol(wallThickness / 2, 0, 0, 0, false)
-  const innerGeo = getVol(-wallThickness / 2, 0, -5, 2, false)
+  const wallGeo = getVol(wallThickness / 2, wallThickness / 2, 0, 0, 0, false)
+  const innerGeo = getVol(-wallThickness / 2, -wallThickness / 2, 0, -5, 2, false)
 
-  const horizontalOverhang = overhang * cosTheta
-  const deckExt = wallThickness / 2 + horizontalOverhang
+  const horizontalOverhangX = overhangX * cosTheta
+  const horizontalOverhangZ = overhangZ * cosTheta
+  const deckExtX = wallThickness / 2 + horizontalOverhangX
+  const deckExtZ = wallThickness / 2 + horizontalOverhangZ
 
-  const deckTopGeo = getVol(deckExt, verticalRt, 0, 1, false)
-  const deckBotGeo = getVol(deckExt, 0, -5, 0, true)
+  const deckTopGeo = getVol(deckExtX, deckExtZ, verticalRt, 0, 1, false)
+  const deckBotGeo = getVol(deckExtX, deckExtZ, 0, -5, 0, true)
 
   const stSin = shingleThickness * sinTheta
   const stCos = shingleThickness * cosTheta
 
-  const shinBotW = Math.max(0.01, width + 2 * deckExt)
-  const shinBotD = Math.max(0.01, depth + 2 * deckExt)
+  const shinBotW = Math.max(0.01, width + 2 * deckExtX)
+  const shinBotD = Math.max(0.01, depth + 2 * deckExtZ)
 
-  const deckDrop = deckExt * tanTheta
+  const deckDrop = deckExtZ * tanTheta
   const shinBotWh = wallHeight - deckDrop + verticalRt
 
   let shinBotRh = activeRh
@@ -1409,8 +1415,8 @@ export function getRoofSegmentBrushes(node: RoofSegmentNode): RoofSegmentBrushSe
   const deckTopBrush = toBrush(deckTopGeo)
   const deckBotBrush = toBrush(deckBotGeo)
   if (deckBotBrush) {
-    const wV = Math.max(0.01, width + 2 * deckExt)
-    const dV = Math.max(0.01, depth + 2 * deckExt)
+    const wV = Math.max(0.01, width + 2 * deckExtX)
+    const dV = Math.max(0.01, depth + 2 * deckExtZ)
     deckBotBrush.scale.set(1 + eps / wV, 1, 1 + eps / dV)
     deckBotBrush.updateMatrixWorld()
   }
@@ -2422,15 +2428,18 @@ export function getRoofOuterSurfaceFrameAtPoint(
   }
 
   const verticalRt = deckThickness / cosTheta
-  const horizontalOverhang = overhang * cosTheta
-  const deckExt = wallThickness / 2 + horizontalOverhang
+  const { overhangX, overhangZ } = resolveRoofSegmentOverhang(segment)
+  const horizontalOverhangX = overhangX * cosTheta
+  const horizontalOverhangZ = overhangZ * cosTheta
+  const deckExtX = wallThickness / 2 + horizontalOverhangX
+  const deckExtZ = wallThickness / 2 + horizontalOverhangZ
 
   const stSin = shingleThickness * sinTheta
   const stCos = shingleThickness * cosTheta
 
-  const shinBotW = Math.max(0.01, width + 2 * deckExt)
-  const shinBotD = Math.max(0.01, depth + 2 * deckExt)
-  const deckDrop = deckExt * tanTheta
+  const shinBotW = Math.max(0.01, width + 2 * deckExtX)
+  const shinBotD = Math.max(0.01, depth + 2 * deckExtZ)
+  const deckDrop = deckExtZ * tanTheta
   const shinBotWh = wallHeight - deckDrop + verticalRt
 
   let shinBotRh = activeRh
