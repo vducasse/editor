@@ -19,10 +19,22 @@ import type { Material, Mesh } from 'three'
  *   3 = top   (roof shingle)
  *   4 = gable triangle — paint as wall
  *
- * Window-frame meshes are not in the body mesh; they're routed to
- * 'side' separately by the editor when the click lands on them.
+ * Window-frame and sill meshes have names containing 'dormer-frame',
+ * 'dormer-sill', or 'dormer-window'.
  */
-export function resolveDormerRole(materialIndex: number | null): DormerSurfaceMaterialRole {
+export function resolveDormerRole(
+  materialIndex: number | null,
+  hitObjectName?: string,
+): DormerSurfaceMaterialRole {
+  if (
+    hitObjectName &&
+    (hitObjectName.includes('dormer-frame') ||
+      hitObjectName.includes('dormer-sill') ||
+      hitObjectName.includes('dormer-glass') ||
+      hitObjectName.includes('dormer-window'))
+  ) {
+    return 'window'
+  }
   if (materialIndex === 3) return 'top'
   if (materialIndex === 1) return 'side'
   return 'wall'
@@ -38,6 +50,9 @@ export function buildDormerMaterialPatch(
   }
   if (role === 'side') {
     return { sideMaterial: material, sideMaterialPreset: materialPreset }
+  }
+  if (role === 'window') {
+    return { windowMaterial: material, windowMaterialPreset: materialPreset }
   }
   return { wallMaterial: material, wallMaterialPreset: materialPreset }
 }
@@ -56,40 +71,57 @@ function buildPreviewMaterial(
 }
 
 /**
- * Apply a preview material to the dormer's `dormer-body` mesh at the
- * slots that map to `role`:
- *   role='wall' → slots [0, 2, 4]
- *   role='side' → slot  [1]
- *   role='top'  → slot  [3]
+ * Apply a preview material to the dormer's meshes at the slots/objects
+ * that map to `role`:
+ *   role='window' → meshes with 'dormer-frame' / 'dormer-sill'
+ *   role='wall'   → body slots [0, 2, 4]
+ *   role='side'   → body slot  [1]
+ *   role='top'    → body slot  [3]
  */
 function applyDormerPreview(
   role: DormerSurfaceMaterialRole,
   previewMaterial: Material,
   root: import('three').Object3D,
 ): (() => void) | null {
-  const slotsToPaint = (() => {
-    if (role === 'top') return [3]
-    if (role === 'side') return [1]
-    return [0, 2, 4]
-  })()
-
   const restores: Array<() => void> = []
-  root.traverse((object) => {
-    const mesh = object as Mesh
-    if (!mesh.isMesh) return
-    if (mesh.name !== 'dormer-body') return
-    const current = mesh.material as Material | Material[]
-    if (!Array.isArray(current)) return
-    const previousArray = [...current]
-    const nextArray = [...current]
-    for (const idx of slotsToPaint) {
-      if (current[idx]) nextArray[idx] = previewMaterial
-    }
-    mesh.material = nextArray
-    restores.push(() => {
-      mesh.material = previousArray
+
+  if (role === 'window') {
+    root.traverse((object) => {
+      const mesh = object as Mesh
+      if (!mesh.isMesh) return
+      if (mesh.name.includes('dormer-frame') || mesh.name.includes('dormer-sill')) {
+        const previousMat = mesh.material
+        mesh.material = previewMaterial
+        restores.push(() => {
+          mesh.material = previousMat
+        })
+      }
     })
-  })
+  } else {
+    const slotsToPaint = (() => {
+      if (role === 'top') return [3]
+      if (role === 'side') return [1]
+      return [0, 2, 4]
+    })()
+
+    root.traverse((object) => {
+      const mesh = object as Mesh
+      if (!mesh.isMesh) return
+      if (mesh.name !== 'dormer-body') return
+      const current = mesh.material as Material | Material[]
+      if (!Array.isArray(current)) return
+      const previousArray = [...current]
+      const nextArray = [...current]
+      for (const idx of slotsToPaint) {
+        if (current[idx]) nextArray[idx] = previewMaterial
+      }
+      mesh.material = nextArray
+      restores.push(() => {
+        mesh.material = previousArray
+      })
+    })
+  }
+
   if (restores.length === 0) return null
   return () => {
     for (let i = restores.length - 1; i >= 0; i -= 1) restores[i]?.()
@@ -102,7 +134,8 @@ function applyDormerPreview(
  * `if (node.type === 'dormer') { ... }` arm.
  */
 export const dormerPaint: PaintCapability = {
-  resolveRole: ({ materialIndex }) => resolveDormerRole(materialIndex),
+  resolveRole: ({ materialIndex, hitObjectName, hitObject }) =>
+    resolveDormerRole(materialIndex, hitObjectName ?? hitObject?.name),
   buildPatch: ({ role, material, materialPreset }) =>
     buildDormerMaterialPatch(role as DormerSurfaceMaterialRole, material, materialPreset),
   applyPreview: ({ role, material, materialPreset, root }) => {

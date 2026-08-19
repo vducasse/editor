@@ -25,6 +25,16 @@ describe('DormerNode schema', () => {
     const parsed = DormerNode.parse({ windowCornerRadii: [0.1, 0.2, 0.3, 0.4] })
     expect(parsed.windowCornerRadii).toEqual([0.1, 0.2, 0.3, 0.4])
   })
+
+  test('windowCount and windowSpacing defaults and constraints', () => {
+    const parsed = DormerNode.parse({})
+    expect(parsed.windowCount).toBe(1)
+    expect(parsed.windowSpacing).toBe(0.1)
+
+    expect(() => DormerNode.parse({ windowCount: 0 })).toThrow()
+    expect(() => DormerNode.parse({ windowCount: 9 })).toThrow()
+    expect(() => DormerNode.parse({ windowSpacing: -0.1 })).toThrow()
+  })
 })
 
 describe('getEffectiveDormerSurfaceMaterial', () => {
@@ -47,10 +57,22 @@ describe('getEffectiveDormerSurfaceMaterial', () => {
     expect(getEffectiveDormerSurfaceMaterial(node, 'wall').materialPreset).toBe('cedar')
   })
 
+  test('window role prefers windowMaterialPreset, falls back to sideMaterialPreset, then legacy', () => {
+    const node1 = DormerNode.parse({ windowMaterialPreset: 'black_metal' })
+    expect(getEffectiveDormerSurfaceMaterial(node1, 'window').materialPreset).toBe('black_metal')
+
+    const node2 = DormerNode.parse({ sideMaterialPreset: 'wood' })
+    expect(getEffectiveDormerSurfaceMaterial(node2, 'window').materialPreset).toBe('wood')
+
+    const node3 = DormerNode.parse({ materialPreset: 'stucco' })
+    expect(getEffectiveDormerSurfaceMaterial(node3, 'window').materialPreset).toBe('stucco')
+  })
+
   test('all three roles fall back to legacy materialPreset when nothing set', () => {
     const node = DormerNode.parse({ materialPreset: 'stucco' })
     expect(getEffectiveDormerSurfaceMaterial(node, 'top').materialPreset).toBe('stucco')
     expect(getEffectiveDormerSurfaceMaterial(node, 'side').materialPreset).toBe('stucco')
     expect(getEffectiveDormerSurfaceMaterial(node, 'wall').materialPreset).toBe('stucco')
+    expect(getEffectiveDormerSurfaceMaterial(node, 'window').materialPreset).toBe('stucco')
   })
 })
