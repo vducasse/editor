@@ -34,7 +34,11 @@ export function buildSkylightRoofCut(
   const surfaceY = surfaceFrame.point.y
   const normal = surfaceFrame.normal
 
-  const h = 2.0
+  const wallThick = segment.wallThickness ?? 0.1
+  const deckThick = segment.deckThickness ?? 0.1
+  const shingleThick = segment.shingleThickness ?? 0.05
+  const totalThickness = wallThick + deckThick + shingleThick
+  const h = Math.max(1.0, totalThickness + 0.5)
   const geo = new THREE.BoxGeometry(w, h, d)
 
   // Yaw in the box's own (un-tilted) frame so it stays a rotation
@@ -59,7 +63,12 @@ export function buildSkylightRoofCut(
     geo.applyQuaternion(quat)
   }
 
-  geo.translate(lx, surfaceY, lz)
+  const depthOffset = h / 2 - 0.1
+  geo.translate(
+    lx - normal.x * depthOffset,
+    surfaceY - normal.y * depthOffset,
+    lz - normal.z * depthOffset,
+  )
 
   // The viewer's merge loop welds vertices (mandatory after
   // `applyQuaternion` on a BoxGeometry — three-bvh-csg's three-way

@@ -15,7 +15,7 @@ import {
   useInteractionScope,
 } from '@pascal-app/editor'
 import { useViewer } from '@pascal-app/viewer'
-import { Edit, Move, Plus, Trash2 } from 'lucide-react'
+import { Edit, Maximize2, Move, Plus, Trash2 } from 'lucide-react'
 import { useCallback, useEffect, useRef } from 'react'
 import {
   applySlabAnchorElevationChange,
@@ -28,6 +28,7 @@ import {
   getSlabBaseElevation,
   getSlabRecessDepth,
 } from './elevation-limit'
+import { fitSlabPolygonToRoof } from './fit-to-roof'
 
 /**
  * Phase 5 Stage E — slab inspector (kind-owned).
@@ -143,6 +144,15 @@ export function SlabPanel() {
     },
     [handleUpdate],
   )
+
+  const handleFitToRoof = useCallback(() => {
+    const current = nodeRef.current
+    if (!current) return
+    const fittedPolygon = fitSlabPolygonToRoof(current, useScene.getState().nodes)
+    if (fittedPolygon) {
+      handleUpdate({ polygon: fittedPolygon })
+    }
+  }, [handleUpdate])
 
   const handleClose = useCallback(() => {
     setSelection({ selectedIds: [] })
@@ -453,6 +463,11 @@ export function SlabPanel() {
       </PanelSection>
       <ActionGroup>
         <ActionButton icon={<Move className="h-3.5 w-3.5" />} label="Move" onClick={handleMove} />
+        <ActionButton
+          icon={<Maximize2 className="h-3.5 w-3.5" />}
+          label="Fit to Roof"
+          onClick={handleFitToRoof}
+        />
       </ActionGroup>
     </PanelWrapper>
   )

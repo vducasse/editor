@@ -5,6 +5,7 @@ import {
   getDutchRoofShapeMetrics,
   getEffectiveNode,
   getRoofModuleFaces,
+  getRoofSegmentSurfaceY,
   getRoofShapeInsets,
   getRoofShapeRatios,
   getSegmentSlopeFrame,
@@ -384,10 +385,12 @@ function subtractAccessoryCuts(
         workingDeck = nextDeck
       }
 
-      const nextWall = csgEvaluator.evaluate(workingWall, cut, SUBTRACTION) as Brush
-      workingWall.geometry.dispose()
-      prepareBrushForCSG(nextWall)
-      workingWall = nextWall
+      if (cutScope !== 'roof') {
+        const nextWall = csgEvaluator.evaluate(workingWall, cut, SUBTRACTION) as Brush
+        workingWall.geometry.dispose()
+        prepareBrushForCSG(nextWall)
+        workingWall = nextWall
+      }
     } catch (e) {
       console.error(`[${childElem.type}] cut CSG failed:`, e)
     } finally {
@@ -1258,7 +1261,7 @@ export function getRoofSegmentBrushes(node: RoofSegmentNode): RoofSegmentBrushSe
   const deckExtZ = wallThickness / 2 + horizontalOverhangZ
 
   const deckTopGeo = getVol(deckExtX, deckExtZ, verticalRt, 0, 1, false)
-  const deckBotGeo = getVol(deckExtX, deckExtZ, 0, -5, 0, true)
+  const deckBotGeo = getVol(deckExtX, deckExtZ, 0, -5, 2, true)
 
   const stSin = shingleThickness * sinTheta
   const stCos = shingleThickness * cosTheta
