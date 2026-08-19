@@ -9,6 +9,7 @@ import {
   useLiveNodeOverrides,
   useScene,
 } from '@pascal-app/core'
+import { surfacePaintCapability } from '../shared/surface-paint'
 import { downspoutParametrics } from './parametrics'
 import {
   computeDownspoutPath,
@@ -173,6 +174,7 @@ export const downspoutDefinition: NodeDefinition<typeof DownspoutNode> = {
     selectable: { hitVolume: 'bbox' },
     duplicable: true,
     deletable: true,
+    paint: surfacePaintCapability,
     // Logically a roof accessory — registers under the segment, has
     // no buildCut, just the standard dirty cascade.
     roofAccessory: {},

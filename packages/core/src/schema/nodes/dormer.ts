@@ -4,7 +4,7 @@ import { BaseNode, nodeType, objectId } from '../base'
 import { MaterialSchema } from '../material'
 import { RoofType } from './roof-segment'
 
-export type DormerSurfaceMaterialRole = 'top' | 'side' | 'wall'
+export type DormerSurfaceMaterialRole = 'top' | 'side' | 'wall' | 'window'
 export type DormerSurfaceMaterialSpec = {
   material?: z.infer<typeof MaterialSchema>
   materialPreset?: string
@@ -33,6 +33,8 @@ export const DORMER_DEFAULTS = {
   WINDOW_CORNER_RADIUS: 0.15,
   WINDOW_SILL_DEPTH: 0.08,
   WINDOW_SILL_THICKNESS: 0.03,
+  WINDOW_COUNT: 1,
+  WINDOW_SPACING: 0.1,
 } as const
 
 const DEFAULT_CORNER_RADII: [number, number, number, number] = [
@@ -54,6 +56,8 @@ export const DormerNode = BaseNode.extend({
   sideMaterialPreset: z.string().optional(),
   wallMaterial: MaterialSchema.optional(),
   wallMaterialPreset: z.string().optional(),
+  windowMaterial: MaterialSchema.optional(),
+  windowMaterialPreset: z.string().optional(),
 
   roofSegmentId: z.string().optional(),
   position: z.tuple([z.number(), z.number(), z.number()]).default([0, 0, 0]),
@@ -78,6 +82,8 @@ export const DormerNode = BaseNode.extend({
   windowHeight: z.number().default(DORMER_DEFAULTS.WINDOW_HEIGHT),
   windowOffsetX: z.number().default(DORMER_DEFAULTS.WINDOW_OFFSET_X),
   windowOffsetY: z.number().default(DORMER_DEFAULTS.WINDOW_OFFSET_Y),
+  windowCount: z.number().int().min(1).max(8).default(DORMER_DEFAULTS.WINDOW_COUNT),
+  windowSpacing: z.number().min(0).max(5).default(DORMER_DEFAULTS.WINDOW_SPACING),
   windowFrameThickness: z.number().default(DORMER_DEFAULTS.WINDOW_FRAME_THICKNESS),
   windowFrameDepth: z.number().default(DORMER_DEFAULTS.WINDOW_FRAME_DEPTH),
   windowColumns: z.number().int().min(1).max(8).default(DORMER_DEFAULTS.WINDOW_COLUMNS),
@@ -117,17 +123,11 @@ export function getEffectiveDormerSurfaceMaterial(
   node: DormerNode,
   role: DormerSurfaceMaterialRole,
 ): DormerSurfaceMaterialSpec {
-  const top: DormerSurfaceMaterialSpec = {
-    material: node.topMaterial,
-    materialPreset: node.topMaterialPreset,
-  }
-  const side: DormerSurfaceMaterialSpec = {
-    material: node.sideMaterial,
-    materialPreset: node.sideMaterialPreset,
-  }
-  const wall: DormerSurfaceMaterialSpec = {
-    material: node.wallMaterial,
-    materialPreset: node.wallMaterialPreset,
+  const specMap: Record<DormerSurfaceMaterialRole, DormerSurfaceMaterialSpec> = {
+    top: { material: node.topMaterial, materialPreset: node.topMaterialPreset },
+    side: { material: node.sideMaterial, materialPreset: node.sideMaterialPreset },
+    wall: { material: node.wallMaterial, materialPreset: node.wallMaterialPreset },
+    window: { material: node.windowMaterial, materialPreset: node.windowMaterialPreset },
   }
   const legacy: DormerSurfaceMaterialSpec = {
     material: node.material,
@@ -136,7 +136,9 @@ export function getEffectiveDormerSurfaceMaterial(
   const has = (spec: DormerSurfaceMaterialSpec) =>
     spec.material !== undefined || typeof spec.materialPreset === 'string'
 
-  if (role === 'top') return has(top) ? top : legacy
-  if (role === 'side') return has(side) ? side : has(wall) ? wall : legacy
-  return has(wall) ? wall : has(side) ? side : legacy
+  if (has(specMap[role])) return specMap[role]
+  if (role === 'window' && has(specMap.side)) return specMap.side
+  if (role === 'side' && has(specMap.wall)) return specMap.wall
+  if (role === 'wall' && has(specMap.side)) return specMap.side
+  return legacy
 }

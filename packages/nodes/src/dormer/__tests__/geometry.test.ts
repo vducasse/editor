@@ -5,8 +5,58 @@ import {
   buildDormerGhostGeometry,
   dormerSupportsArch,
   dormerSupportsCornerRadii,
+  getDormerWindowLayout,
 } from '../geometry'
 import { DormerNode } from '../schema'
+
+describe('getDormerWindowLayout', () => {
+  test('single window for gable dormer even if windowCount > 1', () => {
+    const node = DormerNode.parse({
+      roofType: 'gable',
+      width: 3.0,
+      windowWidth: 0.8,
+      windowCount: 3,
+      windowOffsetX: 0.1,
+    })
+    const layout = getDormerWindowLayout(node)
+    expect(layout.count).toBe(1)
+    expect(layout.instances.length).toBe(1)
+    expect(layout.instances[0].x).toBeCloseTo(0.1)
+  })
+
+  test('multiple windows symmetrically distributed for shed dormer', () => {
+    const node = DormerNode.parse({
+      roofType: 'shed',
+      width: 4.0,
+      windowWidth: 0.8,
+      windowCount: 3,
+      windowSpacing: 0.2,
+      windowOffsetX: 0,
+    })
+    const layout = getDormerWindowLayout(node)
+    expect(layout.count).toBe(3)
+    expect(layout.instances.length).toBe(3)
+    expect(layout.instances[0].x).toBeCloseTo(-1.0)
+    expect(layout.instances[1].x).toBeCloseTo(0.0)
+    expect(layout.instances[2].x).toBeCloseTo(1.0)
+  })
+
+  test('two windows for shed dormer', () => {
+    const node = DormerNode.parse({
+      roofType: 'shed',
+      width: 3.0,
+      windowWidth: 0.8,
+      windowCount: 2,
+      windowSpacing: 0.2,
+      windowOffsetX: 0,
+    })
+    const layout = getDormerWindowLayout(node)
+    expect(layout.count).toBe(2)
+    expect(layout.instances.length).toBe(2)
+    expect(layout.instances[0].x).toBeCloseTo(-0.5)
+    expect(layout.instances[1].x).toBeCloseTo(0.5)
+  })
+})
 
 describe('buildDormerGhostGeometry (placement preview)', () => {
   test('returns a buffer geometry with position attribute', () => {

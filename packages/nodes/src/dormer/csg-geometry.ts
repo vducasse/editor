@@ -21,6 +21,7 @@ import {
 } from '@pascal-app/viewer'
 import * as THREE from 'three'
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js'
+import { getDormerWindowLayout } from './geometry'
 
 // Legacy default for the hung-wall (skirt) height. Used as a fallback
 // when `dormer.wallSkirtHeight` is undefined (e.g. old saved scenes).
@@ -436,35 +437,37 @@ export function generateDormerGeometry(
 
     // Cut window openings on exposed gable faces.
     const exposed = getDormerExposedFaces(dormer, hostSegment)
-    const skirtWin = getDormerSkirtWindowDims(dormer)
+    const windowLayout = getDormerWindowLayout(dormer)
     const gableHalfZ = dormer.depth / 2
     const cutDepth = 0.4
 
     const cutFace = (zSign: number) => {
-      const cutGeo = createDormerWindowCutGeometry(
-        dormer,
-        skirtWin.width,
-        skirtWin.height,
-        cutDepth,
-      )
-      cutGeo.translate(skirtWin.offsetX, skirtWin.centerY, zSign * gableHalfZ)
-      if (!cutGeo.getIndex()) {
-        const posCount = cutGeo.getAttribute('position').count
-        const idx = new Uint32Array(posCount)
-        for (let i = 0; i < posCount; i++) idx[i] = i
-        cutGeo.setIndex(new THREE.BufferAttribute(idx, 1))
+      for (const instance of windowLayout.instances) {
+        const cutGeo = createDormerWindowCutGeometry(
+          dormer,
+          windowLayout.width,
+          windowLayout.height,
+          cutDepth,
+        )
+        cutGeo.translate(instance.x, windowLayout.centerY, zSign * gableHalfZ)
+        if (!cutGeo.getIndex()) {
+          const posCount = cutGeo.getAttribute('position').count
+          const idx = new Uint32Array(posCount)
+          for (let i = 0; i < posCount; i++) idx[i] = i
+          cutGeo.setIndex(new THREE.BufferAttribute(idx, 1))
+        }
+        const idxCount = cutGeo.getIndex()!.count
+        cutGeo.clearGroups()
+        cutGeo.addGroup(0, idxCount, 0)
+        computeGeometryBoundsTree(cutGeo)
+        const brush = new Brush(cutGeo, roofCsgDummyMats[0])
+        prepareBrushForCSG(brush)
+        const result = csgEvaluator.evaluate(dormerSolid!, brush, SUBTRACTION) as Brush
+        prepareBrushForCSG(result)
+        dormerSolid!.geometry.dispose()
+        brush.geometry.dispose()
+        dormerSolid = result
       }
-      const idxCount = cutGeo.getIndex()!.count
-      cutGeo.clearGroups()
-      cutGeo.addGroup(0, idxCount, 0)
-      computeGeometryBoundsTree(cutGeo)
-      const brush = new Brush(cutGeo, roofCsgDummyMats[0])
-      prepareBrushForCSG(brush)
-      const result = csgEvaluator.evaluate(dormerSolid!, brush, SUBTRACTION) as Brush
-      prepareBrushForCSG(result)
-      dormerSolid!.geometry.dispose()
-      brush.geometry.dispose()
-      dormerSolid = result
     }
 
     if (exposed.front) cutFace(+1)

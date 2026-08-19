@@ -99,12 +99,32 @@ const DormerRenderer = ({ node: storeNode }: { node: DormerNode }) => {
     node.wallMaterialPreset,
   ])
 
-  // The window frame bars / sill take the 'joinery' role when untextured;
-  // otherwise the deck-side material (slot 1) drives the frame look.
+  // The window frame bars / sill take windowMaterial if specified,
+  // falling back to deck-side material (slot 1), or 'joinery' role when untextured.
+  const windowSpec = useMemo(
+    () => getEffectiveDormerSurfaceMaterial(node, 'window'),
+    [
+      node.windowMaterial,
+      node.windowMaterialPreset,
+      node.sideMaterial,
+      node.sideMaterialPreset,
+      node.wallMaterial,
+      node.wallMaterialPreset,
+      node.material,
+      node.materialPreset,
+    ],
+  )
+
   const frameSideMat = useMemo(() => {
     if (!textures) return createSurfaceRoleMaterial('joinery', colorPreset, undefined, sceneTheme)
+    if (windowSpec.materialPreset) {
+      return createMaterialFromPresetRef(windowSpec.materialPreset, shading) ?? material[1]!
+    }
+    if (windowSpec.material) {
+      return createMaterial(windowSpec.material, shading)
+    }
     return material[1]!
-  }, [textures, colorPreset, sceneTheme, material])
+  }, [textures, colorPreset, sceneTheme, material, windowSpec, shading])
 
   // Dormer window glass has no per-node material — it always takes the
   // themed 'glazing' role (semi-transparent) in both texture modes.

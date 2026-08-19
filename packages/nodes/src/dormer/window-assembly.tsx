@@ -4,7 +4,8 @@ import type { DormerNode, RoofSegmentNode } from '@pascal-app/core'
 import { useEffect, useMemo } from 'react'
 import * as THREE from 'three'
 import { TrimClippedMesh } from '../shared/use-segment-trim-clip'
-import { getDormerExposedFaces, getDormerSkirtWindowDims } from './csg-geometry'
+import { getDormerExposedFaces } from './csg-geometry'
+import { getDormerWindowLayout } from './geometry'
 import { buildDormerWindowGeometries, type DormerWindowShape } from './window-frame'
 
 /**
@@ -35,20 +36,23 @@ const DormerWindowAssembly = ({
   dormerToSegment: THREE.Matrix4
 }) => {
   // biome-ignore lint/correctness/useExhaustiveDependencies: deps deliberately list the build inputs; depending on the whole object would rebuild on unrelated field changes.
-  const skirtWin = useMemo(
-    () => getDormerSkirtWindowDims(node),
+  const windowLayout = useMemo(
+    () => getDormerWindowLayout(node),
     [
+      node.roofType,
       node.width,
       node.windowWidth,
       node.windowHeight,
       node.windowOffsetX,
       node.windowOffsetY,
+      node.windowCount,
+      node.windowSpacing,
       node.wallSkirtHeight,
     ],
   )
 
-  const winW = skirtWin.width
-  const winH = skirtWin.height
+  const winW = windowLayout.width
+  const winH = windowLayout.height
   const winShape: DormerWindowShape = node.windowShape
   const resolvedRadii: [number, number, number, number] = [...node.windowCornerRadii]
 
@@ -137,8 +141,7 @@ const DormerWindowAssembly = ({
   )
 
   const gableHalfZ = node.depth / 2
-  const winX = skirtWin.offsetX
-  const winY = skirtWin.centerY
+  const winY = windowLayout.centerY
 
   // The glazing role material is FrontSide (DoubleSide on a NodeMaterial
   // poisons the MRT scene pass — see `createSurfaceRoleMaterial`). The
@@ -147,55 +150,65 @@ const DormerWindowAssembly = ({
   // the sill always extrudes along the group's local +Z, so its position
   // no longer needs to flip per-face.
   const renderFace = (zPos: number, yRot: number, keyPrefix: string) => {
-    // Compose this face group's transform onto the dormer→segment matrix, so
-    // each window part can be clipped by the trim in segment-local space.
-    const faceToSegment = new THREE.Matrix4()
-      .copy(dormerToSegment)
-      .multiply(
-        new THREE.Matrix4().compose(
-          new THREE.Vector3(winX, winY, zPos),
-          new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), yRot),
-          new THREE.Vector3(1, 1, 1),
-        ),
-      )
     return (
-      <group name={`dormer-window-${keyPrefix}`} position={[winX, winY, zPos]} rotation-y={yRot}>
-        {winGeo.glassPanes.map((pane, i) => (
-          <TrimClippedMesh
-            geometry={pane.geo}
-            key={`${keyPrefix}-glass-${i}`}
-            material={glassMaterial}
-            name={`dormer-glass-${keyPrefix}-${i}`}
-            parentToSegment={faceToSegment}
-            position={pane.pos}
-            segment={segment}
-          />
-        ))}
-        {winGeo.frameBars.map((bar, i) => (
-          <TrimClippedMesh
-            castShadow
-            geometry={bar.geo}
-            key={`${keyPrefix}-bar-${i}`}
-            material={frameMaterial}
-            name={`dormer-frame-${keyPrefix}-${i}`}
-            parentToSegment={faceToSegment}
-            position={bar.pos}
-            segment={segment}
-          />
-        ))}
-        {sillGeo && (
-          <TrimClippedMesh
-            castShadow
-            geometry={sillGeo}
-            material={frameMaterial}
-            name={`dormer-sill-${keyPrefix}`}
-            parentToSegment={faceToSegment}
-            position={[0, -winH / 2 - sillT / 2, sillD / 2]}
-            receiveShadow
-            segment={segment}
-          />
-        )}
-      </group>
+      <>
+        {windowLayout.instances.map((instance, instIdx) => {
+          const winX = instance.x
+          const faceToSegment = new THREE.Matrix4()
+            .copy(dormerToSegment)
+            .multiply(
+              new THREE.Matrix4().compose(
+                new THREE.Vector3(winX, winY, zPos),
+                new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), yRot),
+                new THREE.Vector3(1, 1, 1),
+              ),
+            )
+          return (
+            <group
+              key={`${keyPrefix}-inst-${instIdx}`}
+              name={`dormer-window-${keyPrefix}-${instIdx}`}
+              position={[winX, winY, zPos]}
+              rotation-y={yRot}
+            >
+              {winGeo.glassPanes.map((pane, i) => (
+                <TrimClippedMesh
+                  geometry={pane.geo}
+                  key={`${keyPrefix}-${instIdx}-glass-${i}`}
+                  material={glassMaterial}
+                  name={`dormer-glass-${keyPrefix}-${instIdx}-${i}`}
+                  parentToSegment={faceToSegment}
+                  position={pane.pos}
+                  segment={segment}
+                />
+              ))}
+              {winGeo.frameBars.map((bar, i) => (
+                <TrimClippedMesh
+                  castShadow
+                  geometry={bar.geo}
+                  key={`${keyPrefix}-${instIdx}-bar-${i}`}
+                  material={frameMaterial}
+                  name={`dormer-frame-${keyPrefix}-${instIdx}-${i}`}
+                  parentToSegment={faceToSegment}
+                  position={bar.pos}
+                  segment={segment}
+                />
+              ))}
+              {sillGeo && (
+                <TrimClippedMesh
+                  castShadow
+                  geometry={sillGeo}
+                  material={frameMaterial}
+                  name={`dormer-sill-${keyPrefix}-${instIdx}`}
+                  parentToSegment={faceToSegment}
+                  position={[0, -winH / 2 - sillT / 2, sillD / 2]}
+                  receiveShadow
+                  segment={segment}
+                />
+              )}
+            </group>
+          )
+        })}
+      </>
     )
   }
 

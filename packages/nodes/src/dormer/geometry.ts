@@ -58,6 +58,53 @@ export function buildDormerGhostGeometry(node: DormerNode): THREE.BufferGeometry
 }
 
 /**
+ * Computes window opening layout (offsets, dimensions, count) for a dormer.
+ * Multi-window layout is only enabled for shed dormers.
+ */
+export function getDormerWindowLayout(dormer: DormerNode): {
+  count: number
+  instances: Array<{ x: number }>
+  width: number
+  height: number
+  centerY: number
+} {
+  const isShed = dormer.roofType === 'shed'
+  const count = isShed ? Math.max(1, Math.min(8, Math.round(dormer.windowCount ?? 1))) : 1
+  const spacing = isShed ? Math.max(0, dormer.windowSpacing ?? 0.1) : 0
+
+  const skirtH = Math.max(0.05, dormer.wallSkirtHeight ?? 2)
+  const maxW = Math.max(0.1, dormer.width - 0.05)
+  const maxH = Math.max(0.1, skirtH - 0.05)
+
+  const rawW = Math.min(Math.max(dormer.windowWidth ?? 1.2, 0.1), maxW)
+  const height = Math.min(Math.max(dormer.windowHeight ?? 1.2, 0.1), maxH)
+
+  const totalGap = (count - 1) * spacing
+  const maxPerWindow = Math.max(0.1, (maxW - totalGap) / count)
+  const width = Math.min(rawW, maxPerWindow)
+
+  const totalSpan = count * width + totalGap
+  const startX = -totalSpan / 2 + width / 2
+  const centerShift = dormer.windowOffsetX ?? 0
+
+  const instances: Array<{ x: number }> = []
+  for (let i = 0; i < count; i++) {
+    const x = centerShift + startX + i * (width + spacing)
+    instances.push({ x })
+  }
+
+  const centerY = -(skirtH / 2) + (dormer.windowOffsetY ?? 0)
+
+  return {
+    count,
+    instances,
+    width,
+    height,
+    centerY,
+  }
+}
+
+/**
  * Inspector helper: which window-shape sub-controls to surface for the
  * current dormer.
  */
@@ -68,3 +115,4 @@ export function dormerSupportsArch(node: DormerNode): boolean {
 export function dormerSupportsCornerRadii(node: DormerNode): boolean {
   return node.windowShape === 'rounded'
 }
+

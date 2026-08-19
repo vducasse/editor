@@ -7,6 +7,7 @@ import type {
   RoofNode,
   RoofSegmentNode,
 } from '@pascal-app/core'
+import { getDormerWindowLayout } from './geometry'
 
 /**
  * Floor-plan builder for a dormer — a small house-shaped structure that
@@ -198,15 +199,17 @@ export function buildDormerFloorplan(
     }
   }
 
-  // Window on the +Z (front) face — a line just inside the front edge,
-  // spanning the window width centred at its X offset. Marks the glazing
+  // Windows on the +Z (front) face — lines just inside the front edge,
+  // spanning each window width centred at its X offset. Marks the glazing
   // and which way the dormer faces.
-  const ww = node.windowWidth ?? 0
-  if (ww > 0.01) {
-    const halfWin = Math.min(ww, node.width) / 2
-    const center = Math.max(-hw + halfWin, Math.min(hw - halfWin, node.windowOffsetX ?? 0))
+  const layout = getDormerWindowLayout(node)
+  if (layout.width > 0.01) {
+    const halfWin = Math.min(layout.width, node.width) / 2
     const inset = Math.min(hd * 0.2, 0.08)
-    line([center - halfWin, hd - inset], [center + halfWin, hd - inset], lineWidth)
+    for (const inst of layout.instances) {
+      const center = Math.max(-hw + halfWin, Math.min(hw - halfWin, inst.x))
+      line([center - halfWin, hd - inset], [center + halfWin, hd - inset], lineWidth)
+    }
   }
 
   return { kind: 'group', children }

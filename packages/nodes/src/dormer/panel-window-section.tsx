@@ -4,6 +4,8 @@ import type { DormerNode } from '@pascal-app/core'
 import { PanelSection, SegmentedControl, SliderControl, ToggleControl } from '@pascal-app/editor'
 import { useState } from 'react'
 
+import { AlignCenter } from 'lucide-react'
+
 type WindowShape = DormerNode['windowShape']
 type WindowRadiusMode = 'all' | 'individual'
 
@@ -72,9 +74,46 @@ export function DormerWindowSection({
       </PanelSection>
 
       <PanelSection title="Opening">
+        {node.roofType === 'shed' && (
+          <>
+            <SliderControl
+              label="Count"
+              max={8}
+              min={1}
+              onChange={(v) => previewProp({ windowCount: Math.max(1, Math.min(8, Math.round(v))) })}
+              onCommit={(v) => commitProp({ windowCount: Math.max(1, Math.min(8, Math.round(v))) })}
+              precision={0}
+              restoreOnCommit={false}
+              step={1}
+              value={node.windowCount ?? 1}
+            />
+            {(node.windowCount ?? 1) > 1 && (
+              <SliderControl
+                label="Spacing"
+                max={2}
+                min={0}
+                onChange={(v) => previewProp({ windowSpacing: v })}
+                onCommit={(v) => commitProp({ windowSpacing: v })}
+                precision={2}
+                restoreOnCommit={false}
+                step={0.02}
+                unit="m"
+                value={Math.round((node.windowSpacing ?? 0.1) * 100) / 100}
+              />
+            )}
+          </>
+        )}
         <SliderControl
           label="Width"
-          max={Math.max(0.5, node.width - 0.1)}
+          max={
+            node.roofType === 'shed' && (node.windowCount ?? 1) > 1
+              ? Math.max(
+                  0.2,
+                  (node.width - 0.05 - ((node.windowCount ?? 1) - 1) * (node.windowSpacing ?? 0.1)) /
+                    (node.windowCount ?? 1),
+                )
+              : Math.max(0.5, node.width - 0.1)
+          }
           min={0.2}
           onChange={(v) => previewProp({ windowWidth: v })}
           onCommit={(v) => commitProp({ windowWidth: v })}
@@ -108,6 +147,18 @@ export function DormerWindowSection({
           unit="m"
           value={Math.round(node.windowOffsetX * 100) / 100}
         />
+        <div className="flex items-center justify-end pb-0.5">
+          <button
+            className="flex h-6 items-center gap-1.5 rounded border border-border/60 bg-accent/30 px-2 text-[11px] font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground active:scale-[0.98] disabled:opacity-40"
+            disabled={node.windowOffsetX === 0}
+            onClick={() => handleUpdate({ windowOffsetX: 0 })}
+            title="Center windows horizontally on front face"
+            type="button"
+          >
+            <AlignCenter className="h-3 w-3" />
+            <span>Center on Front</span>
+          </button>
+        </div>
         <SliderControl
           label="Offset Y"
           max={2}
