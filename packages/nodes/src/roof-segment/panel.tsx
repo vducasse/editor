@@ -28,7 +28,7 @@ import {
 } from '@pascal-app/editor'
 import { useViewer } from '@pascal-app/viewer'
 import { Check, Copy, Move, Pencil, RotateCcw, Trash2 } from 'lucide-react'
-import { useCallback } from 'react'
+import { useCallback, useState } from 'react'
 
 const ROOF_TYPE_OPTIONS: { label: string; value: RoofType }[] = [
   { label: 'Hip', value: 'hip' },
@@ -544,16 +544,73 @@ export default function RoofSegmentPanel() {
           unit="m"
           value={Math.round(node.deckThickness * 100) / 100}
         />
-        <SliderControl
-          label="Overhang"
-          max={1}
-          min={0}
-          onChange={(v) => handleUpdate({ overhang: v })}
-          precision={2}
-          step={0.05}
-          unit="m"
-          value={Math.round(node.overhang * 100) / 100}
-        />
+        <div className="flex flex-col gap-1.5 pt-1">
+          <div className="flex items-center justify-between text-xs text-muted-foreground">
+            <span>Overhang</span>
+            <SegmentedControl<'all' | 'separate'>
+              className="w-36"
+              onChange={(mode) => {
+                if (mode === 'all') {
+                  const val = node.overhangWidth ?? node.overhangDepth ?? node.overhang ?? 0.3
+                  handleUpdate({
+                    overhang: val,
+                    overhangWidth: undefined,
+                    overhangDepth: undefined,
+                  })
+                } else {
+                  const val = node.overhang ?? 0.3
+                  handleUpdate({
+                    overhangWidth: node.overhangWidth ?? val,
+                    overhangDepth: node.overhangDepth ?? val,
+                  })
+                }
+              }}
+              options={[
+                { label: 'All', value: 'all' },
+                { label: 'W / D', value: 'separate' },
+              ]}
+              value={node.overhangWidth !== undefined || node.overhangDepth !== undefined ? 'separate' : 'all'}
+            />
+          </div>
+
+          {node.overhangWidth === undefined && node.overhangDepth === undefined ? (
+            <SliderControl
+              label="Uniform"
+              max={2}
+              min={0}
+              onChange={(v) =>
+                handleUpdate({ overhang: v, overhangWidth: undefined, overhangDepth: undefined })
+              }
+              precision={2}
+              step={0.05}
+              unit="m"
+              value={Math.round((node.overhang ?? 0.3) * 100) / 100}
+            />
+          ) : (
+            <>
+              <SliderControl
+                label="Width (X)"
+                max={2}
+                min={0}
+                onChange={(v) => handleUpdate({ overhangWidth: v })}
+                precision={2}
+                step={0.05}
+                unit="m"
+                value={Math.round((node.overhangWidth ?? node.overhang ?? 0.3) * 100) / 100}
+              />
+              <SliderControl
+                label="Depth (Z)"
+                max={2}
+                min={0}
+                onChange={(v) => handleUpdate({ overhangDepth: v })}
+                precision={2}
+                step={0.05}
+                unit="m"
+                value={Math.round((node.overhangDepth ?? node.overhang ?? 0.3) * 100) / 100}
+              />
+            </>
+          )}
+        </div>
         <SliderControl
           label="Shingle Thick."
           max={0.3}

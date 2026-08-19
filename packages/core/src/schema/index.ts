@@ -222,6 +222,7 @@ export {
   RoofSegmentNode,
   RoofSegmentTrim,
   RoofType,
+  resolveRoofSegmentOverhang,
 } from './nodes/roof-segment'
 export type {
   DutchRoofShapeMetrics,
