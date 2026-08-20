@@ -1,4 +1,10 @@
-import type { SlotDeclaration, StairNode } from '@pascal-app/core'
+import type { SceneMaterial, SceneMaterialId, SlotDeclaration, StairNode } from '@pascal-app/core'
+import {
+  type RenderShading,
+  resolveMaterialRef,
+  resolveSlotDefaultMaterial,
+} from '@pascal-app/viewer'
+import type * as THREE from 'three'
 
 export type StairSlotId = 'treads' | 'body' | 'railing'
 
@@ -18,3 +24,38 @@ export function stairSlots(node: StairNode): SlotDeclaration[] {
 
   return slots
 }
+
+function hasMaterialSpec(material: unknown, materialPreset: unknown): boolean {
+  return material !== undefined || typeof materialPreset === 'string'
+}
+
+function hasLegacyStairSlotMaterial(node: StairNode, slotId: StairSlotId): boolean {
+  const hasWhole = hasMaterialSpec(node.material, node.materialPreset)
+  const hasTread = hasMaterialSpec(node.treadMaterial, node.treadMaterialPreset)
+  const hasSide = hasMaterialSpec(node.sideMaterial, node.sideMaterialPreset)
+  const hasRailing = hasMaterialSpec(node.railingMaterial, node.railingMaterialPreset)
+
+  if (slotId === 'treads') return hasTread || hasSide || hasWhole
+  if (slotId === 'body') return hasSide || hasTread || hasWhole
+  return hasRailing || hasTread || hasSide || hasWhole
+}
+
+export function resolveStairSlotMaterial(
+  node: StairNode,
+  slotId: StairSlotId,
+  defaultRef: string,
+  baseMaterial: THREE.Material,
+  sceneMaterials: Record<SceneMaterialId, SceneMaterial> | undefined,
+  shading: RenderShading,
+  textures: boolean,
+): THREE.Material {
+  if (!textures) return baseMaterial
+
+  const slotMaterial = resolveMaterialRef(node.slots?.[slotId], sceneMaterials, shading)
+  if (slotMaterial) return slotMaterial
+
+  if (hasLegacyStairSlotMaterial(node, slotId)) return baseMaterial
+
+  return resolveSlotDefaultMaterial(defaultRef, shading)
+}
+

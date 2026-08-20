@@ -134,7 +134,7 @@ function normalizeStairSegmentNode(node: Record<string, unknown>) {
     ...node,
     position: getVector3(node.position, [0, 0, 0]),
     rotation: getFiniteNumber(node.rotation, 0),
-    segmentType: getEnumValue(node.segmentType, ['stair', 'landing'] as const, 'stair'),
+    segmentType: getEnumValue(node.segmentType, ['stair', 'landing', 'winder'] as const, 'stair'),
     width: getFiniteNumber(node.width, 1),
     length: getFiniteNumber(node.length, 3),
     height: getFiniteNumber(node.height, 2.5),

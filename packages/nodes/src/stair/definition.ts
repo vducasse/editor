@@ -503,6 +503,7 @@ export const stairDefinition: NodeDefinition<typeof StairNode> = {
   // compute their own polygon in isolation. See
   // `nodes/src/stair/floorplan.ts` for the emitter.
   floorplan: buildStairFloorplan,
+  floorplanDependencies: (node) => (node as StairNode).children ?? [],
   floorplanMoveTarget: stairFloorplanMoveTarget,
 
   // 2D drag affordances mirror the 3D in-world arrows on selected stairs:

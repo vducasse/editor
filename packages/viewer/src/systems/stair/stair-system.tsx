@@ -133,6 +133,263 @@ export const StairSystem = () => {
 // SEGMENT GEOMETRY
 // ============================================================================
 
+function generateWinderSegmentGeometry(
+  segment: StairSegmentNode,
+  absoluteHeight: number,
+): THREE.BufferGeometry {
+  const { width, length, height, stepCount, fillToFloor, thickness, attachmentSide } = segment
+  const N = Math.max(2, Math.round(stepCount || 3))
+  const stepRise = height / N
+  const isRight = attachmentSide !== 'right'
+
+  const px = isRight ? width / 2 : -width / 2
+  const pz = 0
+
+  const sx = isRight ? -width / 2 : width / 2
+  const sz = 0
+  const cx = sx
+  const cz = length
+  const ex = px
+  const ez = length
+
+  const leg1 = length
+  const leg2 = width
+  const totalLen = leg1 + leg2
+
+  function outerAt(t: number): [number, number] {
+    const d = t * totalLen
+    if (d <= leg1) {
+      const u = leg1 > 1e-6 ? d / leg1 : 0
+      return [sx + (cx - sx) * u, sz + (cz - sz) * u]
+    }
+    const u = leg2 > 1e-6 ? (d - leg1) / leg2 : 0
+    return [cx + (ex - cx) * u, cz + (ez - cz) * u]
+  }
+
+  const positions: number[] = []
+  const normals: number[] = []
+
+  function addTri(
+    a: [number, number, number],
+    b: [number, number, number],
+    c: [number, number, number],
+    nx: number,
+    ny: number,
+    nz: number,
+  ) {
+    positions.push(...a, ...b, ...c)
+    normals.push(nx, ny, nz, nx, ny, nz, nx, ny, nz)
+  }
+
+  function addOrientedTri(
+    a: [number, number, number],
+    b: [number, number, number],
+    c: [number, number, number],
+    nx: number,
+    ny: number,
+    nz: number,
+  ) {
+    const e1x = b[0] - a[0]
+    const e1y = b[1] - a[1]
+    const e1z = b[2] - a[2]
+    const e2x = c[0] - a[0]
+    const e2y = c[1] - a[1]
+    const e2z = c[2] - a[2]
+    const crossX = e1y * e2z - e1z * e2y
+    const crossY = e1z * e2x - e1x * e2z
+    const crossZ = e1x * e2y - e1y * e2x
+    if (crossX * nx + crossY * ny + crossZ * nz >= 0) {
+      addTri(a, b, c, nx, ny, nz)
+    } else {
+      addTri(a, c, b, nx, ny, nz)
+    }
+  }
+
+  function addOrientedQuad(
+    p0: [number, number, number],
+    p1: [number, number, number],
+    p2: [number, number, number],
+    p3: [number, number, number],
+    nx: number,
+    ny: number,
+    nz: number,
+  ) {
+    addOrientedTri(p0, p1, p2, nx, ny, nz)
+    addOrientedTri(p0, p2, p3, nx, ny, nz)
+  }
+
+  function outerTangent(t: number): [number, number] {
+    if (t < leg1 / totalLen - 1e-4) {
+      const dx = cx - sx
+      const dz = cz - sz
+      const len = Math.hypot(dx, dz) || 1
+      return [dx / len, dz / len]
+    }
+    const dx = ex - cx
+    const dz = ez - cz
+    const len = Math.hypot(dx, dz) || 1
+    return [dx / len, dz / len]
+  }
+
+  function riserNormal(t: number, ax: number, az: number): [number, number] {
+    const rx = ax - px
+    const rz = az - pz
+    const rlen = Math.hypot(rx, rz) || 1
+    const n1x = -rz / rlen
+    const n1z = rx / rlen
+    const [tx, tz] = outerTangent(t)
+    if (n1x * tx + n1z * tz < 0) {
+      return [n1x, n1z]
+    }
+    return [-n1x, -n1z]
+  }
+
+  function outerWallNormal(ax: number, az: number, bx: number, bz: number): [number, number] {
+    const dx = bx - ax
+    const dz = bz - az
+    const len = Math.hypot(dx, dz) || 1
+    const n1x = -dz / len
+    const n1z = dx / len
+    const midX = (ax + bx) / 2
+    const midZ = (az + bz) / 2
+    const toPivotX = px - midX
+    const toPivotZ = pz - midZ
+    if (n1x * toPivotX + n1z * toPivotZ < 0) {
+      return [n1x, n1z]
+    }
+    return [-n1x, -n1z]
+  }
+
+  for (let k = 0; k < N; k++) {
+    const t0 = k / N
+    const t1 = (k + 1) / N
+    const topY = (k + 1) * stepRise
+    const botY = k * stepRise
+    const floorY = fillToFloor
+      ? -absoluteHeight
+      : Math.min(0, botY - Math.max(thickness ?? 0.25, 0.05))
+
+    const [ax, az] = outerAt(t0)
+    const [bx, bz] = outerAt(t1)
+
+    const d0 = t0 * totalLen
+    const d1 = t1 * totalLen
+    const crossesCorner = d0 < leg1 - 1e-4 && d1 > leg1 + 1e-4
+    const outers: Array<[number, number]> = crossesCorner
+      ? [
+          [ax, az],
+          [cx, cz],
+          [bx, bz],
+        ]
+      : [
+          [ax, az],
+          [bx, bz],
+        ]
+
+    // 1. Tread top face (Y = topY, normal = +Y)
+    for (let j = 0; j < outers.length - 1; j++) {
+      const [o1x, o1z] = outers[j]!
+      const [o2x, o2z] = outers[j + 1]!
+      addOrientedTri([px, topY, pz], [o1x, topY, o1z], [o2x, topY, o2z], 0, 1, 0)
+    }
+
+    // 2. Bottom face (Y = floorY, normal = -Y)
+    for (let j = 0; j < outers.length - 1; j++) {
+      const [o1x, o1z] = outers[j]!
+      const [o2x, o2z] = outers[j + 1]!
+      addOrientedTri([px, floorY, pz], [o1x, floorY, o1z], [o2x, floorY, o2z], 0, -1, 0)
+    }
+
+    // 3. Riser face (from botY to topY along ray from pivot to ptA)
+    const [rnx, rnz] = riserNormal(t0, ax, az)
+    addOrientedQuad(
+      [px, botY, pz],
+      [ax, botY, az],
+      [ax, topY, az],
+      [px, topY, pz],
+      rnx,
+      0,
+      rnz,
+    )
+
+    // 4. Outer wall faces
+    for (let j = 0; j < outers.length - 1; j++) {
+      const [o1x, o1z] = outers[j]!
+      const [o2x, o2z] = outers[j + 1]!
+      const [onx, onz] = outerWallNormal(o1x, o1z, o2x, o2z)
+      addOrientedQuad(
+        [o1x, floorY, o1z],
+        [o2x, floorY, o2z],
+        [o2x, topY, o2z],
+        [o1x, topY, o1z],
+        onx,
+        0,
+        onz,
+      )
+    }
+
+    // 4b. Underside step riser for floating stair
+    if (!fillToFloor && k > 0) {
+      const prevFloorY = Math.max(
+        -absoluteHeight,
+        (k - 1) * stepRise - Math.max(thickness ?? 0.25, 0.05),
+      )
+      if (floorY > prevFloorY + 1e-4) {
+        addOrientedQuad(
+          [px, prevFloorY, pz],
+          [ax, prevFloorY, az],
+          [ax, floorY, az],
+          [px, floorY, pz],
+          rnx,
+          0,
+          rnz,
+        )
+      }
+    }
+  }
+
+  // 5. Exit back face at step N - 1 (points outward in exit forward direction)
+  const lastFloorY = fillToFloor
+    ? -absoluteHeight
+    : Math.min(0, (N - 1) * stepRise - Math.max(thickness ?? 0.25, 0.05))
+  const [inEnx, inEnz] = riserNormal(1.0, ex, ez)
+  const enx = -inEnx
+  const enz = -inEnz
+  addOrientedQuad(
+    [px, lastFloorY, pz],
+    [ex, lastFloorY, ez],
+    [ex, height, ez],
+    [px, height, pz],
+    enx,
+    0,
+    enz,
+  )
+
+  // 6. Entry face skirt at step 0 if floorY < 0 (points outward in entry backward direction)
+  const entryFloorY = fillToFloor ? -absoluteHeight : -Math.max(thickness ?? 0.25, 0.05)
+  if (entryFloorY < -1e-4) {
+    const [snx, snz] = riserNormal(0.0, sx, sz)
+    addOrientedQuad(
+      [px, entryFloorY, pz],
+      [sx, entryFloorY, sz],
+      [sx, 0, sz],
+      [px, 0, pz],
+      snx,
+      0,
+      snz,
+    )
+  }
+
+  const geometry = new THREE.BufferGeometry()
+  geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3))
+  geometry.setAttribute('normal', new THREE.Float32BufferAttribute(normals, 3))
+
+  applyStairSegmentUvs(geometry)
+  ensureUv2Attribute(geometry)
+
+  return geometry
+}
+
 /**
  * Generates the step/landing profile as a THREE.Shape (in the XY plane),
  * then extrudes along Z for the segment width.
@@ -141,6 +398,10 @@ function generateStairSegmentGeometry(
   segment: StairSegmentNode,
   absoluteHeight: number,
 ): THREE.BufferGeometry {
+  if (segment.segmentType === 'winder') {
+    return generateWinderSegmentGeometry(segment, absoluteHeight)
+  }
+
   const { width, length, height, stepCount, segmentType, fillToFloor, thickness } = segment
 
   const shape = new THREE.Shape()
@@ -488,19 +749,33 @@ function computeSegmentTransforms(segments: StairSegmentNode[]): SegmentTransfor
       const localAttachPos = new THREE.Vector3()
       let rotChange = 0
 
-      switch (segment.attachmentSide) {
-        case 'front':
-          localAttachPos.set(0, prev.height, prev.length)
-          rotChange = 0
-          break
-        case 'left':
+      if (prev.segmentType === 'winder') {
+        const isTurnRight = prev.attachmentSide !== 'right'
+        if (isTurnRight) {
           localAttachPos.set(prev.width / 2, prev.height, prev.length / 2)
           rotChange = Math.PI / 2
-          break
-        case 'right':
+        } else {
           localAttachPos.set(-prev.width / 2, prev.height, prev.length / 2)
           rotChange = -Math.PI / 2
-          break
+        }
+      } else if (segment.segmentType === 'winder') {
+        localAttachPos.set(0, prev.height, prev.length)
+        rotChange = 0
+      } else {
+        switch (segment.attachmentSide) {
+          case 'front':
+            localAttachPos.set(0, prev.height, prev.length)
+            rotChange = 0
+            break
+          case 'left':
+            localAttachPos.set(prev.width / 2, prev.height, prev.length / 2)
+            rotChange = Math.PI / 2
+            break
+          case 'right':
+            localAttachPos.set(-prev.width / 2, prev.height, prev.length / 2)
+            rotChange = -Math.PI / 2
+            break
+        }
       }
 
       // Rotate local attachment point by previous global rotation

@@ -1,4 +1,10 @@
-import type { AnyNode, AnyNodeId, FloorplanPalette, GeometryContext } from '@pascal-app/core'
+import type {
+  AnyNode,
+  AnyNodeId,
+  FloorplanPalette,
+  GeometryContext,
+  LiveNodeOverrides,
+} from '@pascal-app/core'
 import {
   createFloorplanContextExtensions,
   type FloorplanWallDimensionReference,
@@ -22,11 +28,17 @@ export function buildFloorplanContext(
   nodes: Record<string, AnyNode>,
   viewState: FloorplanViewState,
   levelData?: unknown,
+  liveOverrides?: Map<string, LiveNodeOverrides>,
 ): GeometryContext {
-  const resolve = <N = AnyNode>(id: AnyNodeId): N | undefined => nodes[id] as N | undefined
+  const resolve = <N = AnyNode>(id: AnyNodeId): N | undefined => {
+    const n = nodes[id]
+    if (!n) return undefined
+    const ov = liveOverrides?.get(n.id)
+    return (ov ? { ...n, ...ov } : n) as N
+  }
   const childIds = (node as { children?: AnyNodeId[] }).children
   const children = Array.isArray(childIds)
-    ? childIds.map((id) => nodes[id]).filter((child): child is AnyNode => child !== undefined)
+    ? childIds.map((id) => resolve(id)).filter((child): child is AnyNode => child !== undefined)
     : []
   const parentId = node.parentId as AnyNodeId | null
   const parent = parentId ? (nodes[parentId] ?? null) : null

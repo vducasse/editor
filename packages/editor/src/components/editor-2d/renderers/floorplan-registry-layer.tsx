@@ -2221,7 +2221,7 @@ function buildFloorplanEntryGeometry({
   const ctx: GeometryContext = ctxOverrides
     ? {
         resolve: resolveContextNode,
-        children: ctxOverrides.children,
+        children: ctxOverrides.children.map((c) => resolveContextNode(c.id) ?? c),
         siblings: ctxOverrides.siblings,
         parent: ctxOverrides.parent,
         levelData,
@@ -2243,7 +2243,7 @@ function buildFloorplanEntryGeometry({
           : undefined,
       }
     : {
-        ...buildContext(effectiveNode, contextNodes, viewState, levelData),
+        ...buildContext(effectiveNode, contextNodes, viewState, levelData, liveOverrides),
         resolve: resolveContextNode,
       }
   const modelGeometry = (builder as (n: AnyNode, c: GeometryContext) => FloorplanGeometry | null)(

@@ -76,11 +76,49 @@ function getFloorplanStairTreadLines(
   segment: StairSegmentNode,
   innerPolygon: Point2D[],
 ): FloorplanLineSegment[] {
-  if (segment.segmentType !== 'stair' || segment.stepCount <= 1 || innerPolygon.length < 4) {
+  if (
+    (segment.segmentType !== 'stair' && segment.segmentType !== 'winder') ||
+    segment.stepCount <= 1 ||
+    innerPolygon.length < 4
+  ) {
     return []
   }
 
   const [backLeft, backRight, frontRight, frontLeft] = innerPolygon
+
+  if (segment.segmentType === 'winder') {
+    const isRightTurn = segment.attachmentSide !== 'right'
+    const pivot = isRightTurn ? backRight! : backLeft!
+    const pStart = isRightTurn ? backLeft! : backRight!
+    const pCorner = isRightTurn ? frontLeft! : frontRight!
+    const pEnd = isRightTurn ? frontRight! : frontLeft!
+
+    const len1 = getPlanPointDistance(pStart, pCorner)
+    const len2 = getPlanPointDistance(pCorner, pEnd)
+    const totalLen = len1 + len2
+
+    const getOuterPoint = (t: number): Point2D => {
+      const dist = t * totalLen
+      if (dist <= len1 && len1 > 1e-4) {
+        return interpolatePlanPoint(pStart, pCorner, dist / len1)
+      }
+      if (len2 > 1e-4) {
+        return interpolatePlanPoint(pCorner, pEnd, (dist - len1) / len2)
+      }
+      return pCorner
+    }
+
+    const treadLines: FloorplanLineSegment[] = []
+    for (let stepIndex = 1; stepIndex < segment.stepCount; stepIndex += 1) {
+      const t = stepIndex / segment.stepCount
+      treadLines.push({
+        start: pivot,
+        end: getOuterPoint(t),
+      })
+    }
+    return treadLines
+  }
+
   const treadLines: FloorplanLineSegment[] = []
 
   for (let stepIndex = 1; stepIndex < segment.stepCount; stepIndex += 1) {
@@ -95,7 +133,11 @@ function getFloorplanStairTreadLines(
 }
 
 function getFloorplanStairTreadThickness(segment: StairSegmentNode, innerPolygon: Point2D[]) {
-  if (segment.segmentType !== 'stair' || segment.stepCount <= 1 || innerPolygon.length < 4) {
+  if (
+    (segment.segmentType !== 'stair' && segment.segmentType !== 'winder') ||
+    segment.stepCount <= 1 ||
+    innerPolygon.length < 4
+  ) {
     return 0
   }
 
@@ -271,6 +313,36 @@ function getFloorplanCurvedStairHitPolygon(stair: StairNode): Point2D[] {
   return [...outerPoints, ...innerPoints.reverse()]
 }
 
+function getFloorplanWinderArcPoints(
+  segment: FloorplanStairSegmentEntry,
+  steps = 16,
+): Point2D[] {
+  if (segment.polygon.length < 4) return []
+  const [backLeft, backRight, frontRight, frontLeft] = segment.polygon
+  const isRightTurn = segment.segment.attachmentSide !== 'right'
+  const pivot = isRightTurn ? backRight! : backLeft!
+  const entryPoint = interpolatePlanPoint(backLeft!, backRight!, 0.5)
+  const exitPoint = isRightTurn
+    ? interpolatePlanPoint(backRight!, frontRight!, 0.5)
+    : interpolatePlanPoint(backLeft!, frontLeft!, 0.5)
+
+  const u = { x: entryPoint.x - pivot.x, y: entryPoint.y - pivot.y }
+  const v = { x: exitPoint.x - pivot.x, y: exitPoint.y - pivot.y }
+
+  const points: Point2D[] = []
+  for (let step = 0; step <= steps; step += 1) {
+    const t = step / steps
+    const angle = t * (Math.PI / 2)
+    const cos = Math.cos(angle)
+    const sin = Math.sin(angle)
+    points.push({
+      x: pivot.x + u.x * cos + v.x * sin,
+      y: pivot.y + u.y * cos + v.y * sin,
+    })
+  }
+  return points
+}
+
 function buildFloorplanStairArrow(
   segments: FloorplanStairSegmentEntry[],
 ): FloorplanStairArrowEntry | null {
@@ -279,6 +351,15 @@ function buildFloorplanStairArrow(
   for (let segmentIndex = 0; segmentIndex < segments.length; segmentIndex += 1) {
     const segment = segments[segmentIndex]!
     const nextSegment = segments[segmentIndex + 1]?.segment
+
+    if (segment.segment.segmentType === 'winder') {
+      const arcPoints = getFloorplanWinderArcPoints(segment)
+      for (const pt of arcPoints) {
+        appendUniquePlanPoint(rawPoints, pt)
+      }
+      continue
+    }
+
     const entryPoint = getFloorplanStairSegmentSidePoint(segment, 'back')
     const exitPoint = getFloorplanStairSegmentSidePoint(
       segment,
@@ -398,7 +479,22 @@ export function computeFloorplanStairSegmentTransforms(
     let attachZ = previousSegment.length
     let rotationDelta = 0
 
-    if (segment.attachmentSide === 'left') {
+    if (previousSegment.segmentType === 'winder') {
+      const isTurnRight = previousSegment.attachmentSide !== 'right'
+      if (isTurnRight) {
+        attachX = previousSegment.width / 2
+        attachZ = previousSegment.length / 2
+        rotationDelta = Math.PI / 2
+      } else {
+        attachX = -previousSegment.width / 2
+        attachZ = previousSegment.length / 2
+        rotationDelta = -Math.PI / 2
+      }
+    } else if (segment.segmentType === 'winder') {
+      attachX = 0
+      attachZ = previousSegment.length
+      rotationDelta = 0
+    } else if (segment.attachmentSide === 'left') {
       attachX = previousSegment.width / 2
       attachZ = previousSegment.length / 2
       rotationDelta = Math.PI / 2

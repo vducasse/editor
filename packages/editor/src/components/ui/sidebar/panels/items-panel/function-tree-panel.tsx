@@ -151,6 +151,7 @@ export function FunctionTreePanel({
                         className="size-7 object-contain"
                         height={28}
                         src={root.iconUrl}
+                        unoptimized
                         width={28}
                       />
                     ) : (

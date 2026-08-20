@@ -219,6 +219,7 @@ function LegacyItemsPanel({
                 className={cn('size-7 object-contain', !isActive && 'opacity-60 grayscale')}
                 height={28}
                 src={cat.iconSrc}
+                unoptimized
                 width={28}
               />
               <span className="font-medium text-[10px] leading-none">{cat.label}</span>

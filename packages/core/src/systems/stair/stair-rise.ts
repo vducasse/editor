@@ -1,14 +1,16 @@
 import { getFloorStackedPosition } from '../../hooks/spatial-grid/floor-placed-elevation'
-import type { AnyNode, AnyNodeId, StairNode, StairSegmentNode } from '../../schema'
+import type { AnyNode, AnyNodeId, LevelNode, StairNode, StairSegmentNode } from '../../schema'
 import { DEFAULT_LEVEL_HEIGHT } from '../../services/level-height'
-import { getLevelFloorToFloorHeight } from '../../services/storey'
+import { getLevelElevations, getLevelFloorToFloorHeight } from '../../services/storey'
 
 export function resolveStairTotalRise(stair: StairNode, nodes: Record<string, AnyNode>): number {
   if (stair.totalRise !== undefined) return stair.totalRise
 
-  const level = Object.values(nodes).find(
-    (node) => node.type === 'level' && node.children.includes(stair.id),
-  )
+  const fromLevelId =
+    stair.fromLevelId ??
+    Object.values(nodes).find(
+      (node): node is LevelNode => node?.type === 'level' && node.children.includes(stair.id),
+    )?.id
 
   if (stair.deckSlabId) {
     const deck = nodes[stair.deckSlabId]
@@ -27,15 +29,25 @@ export function resolveStairTotalRise(stair: StairNode, nodes: Record<string, An
         nodes,
         position: stair.position,
         rotation: stair.rotation,
-        levelId: level?.id ?? null,
+        levelId: fromLevelId ?? null,
       })[1]
       return (deck.elevation ?? 0.05) - baseElevation
     }
   }
 
-  return level?.type === 'level'
-    ? getLevelFloorToFloorHeight(level.id, nodes as Record<AnyNodeId, AnyNode>)
-    : DEFAULT_LEVEL_HEIGHT
+  if (fromLevelId) {
+    const elevations = getLevelElevations(nodes as Record<AnyNodeId, AnyNode>)
+    const fromElevation = elevations.get(fromLevelId)
+    if (stair.toLevelId && stair.toLevelId !== fromLevelId) {
+      const toElevation = elevations.get(stair.toLevelId)
+      if (toElevation && fromElevation && toElevation.baseY > fromElevation.baseY) {
+        return toElevation.baseY - fromElevation.baseY
+      }
+    }
+    return getLevelFloorToFloorHeight(fromLevelId, nodes as Record<AnyNodeId, AnyNode>)
+  }
+
+  return DEFAULT_LEVEL_HEIGHT
 }
 
 const RISE_SYNC_EPSILON = 1e-4
