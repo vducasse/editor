@@ -27,10 +27,16 @@ import { useCallback } from 'react'
 const SEGMENT_TYPE_OPTIONS: { label: string; value: StairSegmentType }[] = [
   { label: 'Flight', value: 'stair' },
   { label: 'Landing', value: 'landing' },
+  { label: 'Winder', value: 'winder' },
 ]
 
 const ATTACHMENT_SIDE_OPTIONS: { label: string; value: AttachmentSide }[] = [
   { label: 'Front', value: 'front' },
+  { label: 'Left', value: 'left' },
+  { label: 'Right', value: 'right' },
+]
+
+const WINDER_TURN_OPTIONS: { label: string; value: AttachmentSide }[] = [
   { label: 'Left', value: 'left' },
   { label: 'Right', value: 'right' },
 ]
@@ -134,11 +140,23 @@ export default function StairSegmentPanel() {
             if (v === 'landing') {
               updates.height = 0
               updates.stepCount = 0
-              updates.length = 1.0
+              updates.length = node.width ?? 1.0
+            } else if (v === 'winder') {
+              const stepCount = 3
+              updates.stepCount = stepCount
+              updates.length = node.width ?? 1.0
+              const currentRiser = node.stepCount > 0 ? node.height / node.stepCount : 0.18
+              updates.height =
+                Math.round(Math.min(node.height > 0 ? node.height : 0.54, stepCount * currentRiser) * 100) /
+                  100 || 0.54
+              if (node.attachmentSide === 'front') {
+                updates.attachmentSide = 'right'
+              }
             } else {
-              updates.height = 2.5
-              updates.stepCount = 10
-              updates.length = 3.0
+              updates.height = node.height > 0.3 ? node.height : 2.5
+              const stepCount = Math.max(2, Math.round(updates.height / 0.18))
+              updates.stepCount = stepCount
+              updates.length = Math.round(stepCount * 0.28 * 100) / 100
             }
             handleUpdate(updates)
           }}
@@ -147,14 +165,24 @@ export default function StairSegmentPanel() {
         />
       </PanelSection>
 
-      {!isFirstSegment && (
-        <PanelSection title="Attachment">
+      {node.segmentType === 'winder' ? (
+        <PanelSection title="Turn Direction">
           <SegmentedControl
             onChange={(v) => handleUpdate({ attachmentSide: v })}
-            options={ATTACHMENT_SIDE_OPTIONS}
-            value={node.attachmentSide}
+            options={WINDER_TURN_OPTIONS}
+            value={node.attachmentSide === 'right' ? 'right' : 'left'}
           />
         </PanelSection>
+      ) : (
+        !isFirstSegment && (
+          <PanelSection title="Attachment">
+            <SegmentedControl
+              onChange={(v) => handleUpdate({ attachmentSide: v })}
+              options={ATTACHMENT_SIDE_OPTIONS}
+              value={node.attachmentSide}
+            />
+          </PanelSection>
+        )
       )}
 
       <PanelSection title="Dimensions">
@@ -199,6 +227,30 @@ export default function StairSegmentPanel() {
               step={1}
               unit=""
               value={node.stepCount}
+            />
+          </>
+        )}
+        {node.segmentType === 'winder' && (
+          <>
+            <SliderControl
+              label="Rise"
+              max={2}
+              min={0.2}
+              onChange={(v) => handleUpdate({ height: v })}
+              precision={2}
+              step={0.05}
+              unit="m"
+              value={Math.round(node.height * 100) / 100}
+            />
+            <SliderControl
+              label="Winder Steps"
+              max={6}
+              min={2}
+              onChange={(v) => handleUpdate({ stepCount: Math.round(v) })}
+              precision={0}
+              step={1}
+              unit=""
+              value={node.stepCount || 3}
             />
           </>
         )}

@@ -22,6 +22,7 @@ import {
 import { useEffect, useLayoutEffect, useMemo, useRef } from 'react'
 import * as THREE from 'three'
 import { createPlaceholderGeometry } from '../shared/placeholder-geometry'
+import { StairAxisGizmo } from './axis-gizmo'
 import {
   STAIR_BODY_SLOT_DEFAULT,
   STAIR_RAILING_SLOT_DEFAULT,
@@ -39,6 +40,7 @@ type StairRailPathSide = 'left' | 'right' | 'front'
 type StairRailSidePath = {
   side: StairRailPathSide
   points: [number, number, number][]
+  balusters?: [number, number, number][]
 }
 
 type StairSegmentRailPath = {
@@ -58,6 +60,10 @@ type LandingChainNextStair = {
   nextStairLayout?: StairRailLayout
   isTerminalLandingBeforeStair: boolean
 }
+
+const SHOW_DEBUG_STAIR_AXIS =
+  typeof window !== 'undefined' &&
+  Boolean((window as unknown as { __DEBUG_STAIR_AXIS__?: boolean }).__DEBUG_STAIR_AXIS__)
 
 export const StairRenderer = ({ node: rawNode }: { node: StairNode }) => {
   const ref = useRef<THREE.Group>(null!)
@@ -151,6 +157,7 @@ export const StairRenderer = ({ node: rawNode }: { node: StairNode }) => {
       visible={node.visible}
       {...handlers}
     >
+      {SHOW_DEBUG_STAIR_AXIS ? <StairAxisGizmo /> : null}
       {isSegmentBasedStair ? (
         <mesh
           castShadow
@@ -309,7 +316,7 @@ function StairRailings({ stair, material }: { stair: StairNode; material: THREE.
         >
           {segmentPath.sidePaths.map((sidePath, sideIndex) => (
             <group key={`${segmentPath.layout.segment.id}-${sidePath.side}-${sideIndex}`}>
-              {sidePath.points.map((point, pointIndex) => (
+              {(sidePath.balusters ?? sidePath.points).map((point, pointIndex) => (
                 <mesh
                   castShadow
                   geometry={BALUSTER_GEOMETRY}
@@ -355,22 +362,35 @@ function StairRailings({ stair, material }: { stair: StairNode; material: THREE.
         if (previousPath.layout.segment.segmentType === 'landing') return null
         if (segmentPath.layout.segment.segmentType === 'landing') return null
 
+        const isPrevWinder = previousPath.layout.segment.segmentType === 'winder'
+        const isCurrWinder = segmentPath.layout.segment.segmentType === 'winder'
+
         return segmentPath.sidePaths.map((sidePath, sideIndex) => {
           const currentPoint = sidePath.points[0]
           if (!currentPoint) return null
 
-          const currentWorldPoint = toWorldRailPoint(segmentPath.layout, currentPoint)
-          const previousSidePath = [...previousPath.sidePaths]
-            .map((entry) => {
-              const lastPoint = entry.points[entry.points.length - 1]
-              return {
-                entry,
-                distance: lastPoint
-                  ? distance3(toWorldRailPoint(previousPath.layout, lastPoint), currentWorldPoint)
-                  : Number.POSITIVE_INFINITY,
-              }
-            })
-            .sort((left, right) => left.distance - right.distance)[0]?.entry
+          let previousSidePath: StairRailSidePath | undefined
+          if (isPrevWinder) {
+            const prevTurnRight = previousPath.layout.segment.attachmentSide !== 'right'
+            const currOuterSide = prevTurnRight ? 'right' : 'left'
+            if (sidePath.side === currOuterSide) {
+              const prevOuterSide = prevTurnRight ? 'left' : 'right'
+              previousSidePath = previousPath.sidePaths.find(
+                (p) => p.side === prevOuterSide && p.points.length > 0,
+              )
+            }
+          } else if (isCurrWinder) {
+            const currTurnRight = segmentPath.layout.segment.attachmentSide !== 'right'
+            const currOuterSide = currTurnRight ? 'left' : 'right'
+            if (sidePath.side === currOuterSide) {
+              previousSidePath = previousPath.sidePaths.find((p) => p.points.length > 0)
+            }
+          } else {
+            previousSidePath = previousPath.sidePaths.find(
+              (p) => p.side === sidePath.side && p.points.length > 0,
+            )
+          }
+
           const previousPoint = previousSidePath?.points.length
             ? previousSidePath.points[previousSidePath.points.length - 1]
             : null
@@ -379,6 +399,7 @@ function StairRailings({ stair, material }: { stair: StairNode; material: THREE.
             return null
           }
 
+          const currentWorldPoint = toWorldRailPoint(segmentPath.layout, currentPoint)
           const previousWorldPoint = toWorldRailPoint(previousPath.layout, previousPoint)
 
           return (
@@ -1018,7 +1039,11 @@ function buildStairRailPaths(
                     : visualTurnSide === 'right'
                       ? (['left'] as const)
                       : (['left', 'right'] as const)
-              : (['left', 'right'] as const)
+              : layout.segment.segmentType === 'winder'
+                ? layout.segment.attachmentSide !== 'right'
+                  ? (['left'] as const)
+                  : (['right'] as const)
+                : (['left', 'right'] as const)
 
       return {
         layout,
@@ -1079,7 +1104,12 @@ function buildStairRailPaths(
           nextAttachmentSide === railingMode
         : true
 
-    const sideCandidates = suppressLandingRailing
+    const isWinder = layout.segment.segmentType === 'winder'
+    const isWinderTurnRight = layout.segment.attachmentSide !== 'right'
+    const winderOuterSide = isWinderTurnRight ? 'left' : 'right'
+    const suppressWinderOnInnerSide = isWinder && railingMode !== winderOuterSide
+
+    const sideCandidates = suppressLandingRailing || suppressWinderOnInnerSide
       ? ([] as StairRailPathSide[])
       : layout.segment.segmentType !== 'landing'
         ? [railingMode]
@@ -1222,28 +1252,87 @@ function buildSegmentRailPath(
     }
   }
 
+  if (segment.segmentType === 'winder') {
+    const isRightTurn = segment.attachmentSide !== 'right'
+    const outerSide = isRightTurn ? 'left' : 'right'
+    const innerSide = isRightTurn ? 'right' : 'left'
+    const steps = Math.max(2, Math.round(segment.stepCount || 3))
+    const stepRise = segment.height / steps
+    const inset = 0.045
+
+    if (side === outerSide) {
+      const sx = isRightTurn ? -segment.width / 2 + inset : segment.width / 2 - inset
+      const sz = inset
+      const cx = isRightTurn ? -segment.width / 2 + inset : segment.width / 2 - inset
+      const cz = segment.length - inset
+      const ex = isRightTurn ? segment.width / 2 - inset : -segment.width / 2 + inset
+      const ez = segment.length - inset
+
+      const leg1 = segment.length
+      const leg2 = segment.width
+      const totalLen = leg1 + leg2
+
+      const outerAt = (t: number): [number, number] => {
+        const d = t * totalLen
+        if (d <= leg1) {
+          const u = leg1 > 1e-6 ? d / leg1 : 0
+          return [sx + (cx - sx) * u, sz + (cz - sz) * u]
+        }
+        const u = leg2 > 1e-6 ? (d - leg1) / leg2 : 0
+        return [cx + (ex - cx) * u, cz + (ez - cz) * u]
+      }
+
+      const balusterPts: [number, number, number][] = []
+
+      if (!previousLayout) {
+        const [startOx, startOz] = outerAt(0)
+        balusterPts.push([startOz - segment.length / 2, 0, startOx])
+      }
+
+      for (let k = 0; k < steps; k++) {
+        const t = (k + 0.5) / steps
+        const [ox, oz] = outerAt(t)
+        const y = (k + 1) * stepRise
+        balusterPts.push([oz - segment.length / 2, y, ox])
+      }
+
+      if (!nextLayout) {
+        const [endOx, endOz] = outerAt(1.0)
+        balusterPts.push([endOz - segment.length / 2, segment.height, endOx])
+      }
+
+      return {
+        side,
+        points: balusterPts,
+        balusters: balusterPts,
+      }
+    }
+
+    return { side, points: [], balusters: [] }
+  }
+
+  const flightPoints: [number, number, number][] = []
+
+  if (!previousLayout) {
+    flightPoints.push([flightStartX, 0, flightSideOffset])
+  }
+
+  for (let index = 0; index < steps; index++) {
+    flightPoints.push([
+      -segment.length / 2 + stepDepth * index + stepDepth / 2,
+      stepHeight * (index + 1),
+      flightSideOffset,
+    ])
+  }
+
+  if (!nextLayout) {
+    flightPoints.push([flightEndX, segment.height, flightSideOffset])
+  }
+
   return {
     side,
-    points: [
-      ...(previousLayout?.segment.segmentType === 'landing'
-        ? []
-        : ([[flightStartX, stepHeight > 0 ? stepHeight : 0, flightSideOffset]] as [
-            number,
-            number,
-            number,
-          ][])),
-      ...Array.from({ length: steps }).map(
-        (_, index) =>
-          [
-            -segment.length / 2 + stepDepth * index + stepDepth / 2,
-            stepHeight * (index + 1),
-            flightSideOffset,
-          ] as [number, number, number],
-      ),
-      ...(nextLayout?.segment.segmentType === 'landing'
-        ? []
-        : ([[flightEndX, segment.height, flightSideOffset]] as [number, number, number][])),
-    ],
+    points: flightPoints,
+    balusters: flightPoints,
   }
 }
 
@@ -1276,18 +1365,33 @@ function computeSegmentTransforms(segments: StairSegmentNode[]): SegmentTransfor
     const localAttachPos = new THREE.Vector3()
     let rotChange = 0
 
-    switch (segment.attachmentSide) {
-      case 'front':
-        localAttachPos.set(0, prev.height, prev.length)
-        break
-      case 'left':
+    if (prev.segmentType === 'winder') {
+      const isTurnRight = prev.attachmentSide !== 'right'
+      if (isTurnRight) {
         localAttachPos.set(prev.width / 2, prev.height, prev.length / 2)
         rotChange = Math.PI / 2
-        break
-      case 'right':
+      } else {
         localAttachPos.set(-prev.width / 2, prev.height, prev.length / 2)
         rotChange = -Math.PI / 2
-        break
+      }
+    } else if (segment.segmentType === 'winder') {
+      localAttachPos.set(0, prev.height, prev.length)
+      rotChange = 0
+    } else {
+      switch (segment.attachmentSide) {
+        case 'front':
+          localAttachPos.set(0, prev.height, prev.length)
+          rotChange = 0
+          break
+        case 'left':
+          localAttachPos.set(prev.width / 2, prev.height, prev.length / 2)
+          rotChange = Math.PI / 2
+          break
+        case 'right':
+          localAttachPos.set(-prev.width / 2, prev.height, prev.length / 2)
+          rotChange = -Math.PI / 2
+          break
+      }
     }
 
     localAttachPos.applyAxisAngle(new THREE.Vector3(0, 1, 0), currentRot)

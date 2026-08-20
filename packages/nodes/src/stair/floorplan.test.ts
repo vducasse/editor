@@ -59,4 +59,56 @@ describe('buildStairFloorplan documentation', () => {
     ).toHaveLength(6)
     expect(geometry.children.some((child) => 'strokeDasharray' in child)).toBe(false)
   })
+
+  test('renders quarter-turn staircase with winder segment', () => {
+    const flight1 = StairSegmentNode.parse({
+      id: 'sseg_flight1',
+      width: 1.0,
+      length: 2.0,
+      height: 1.0,
+      stepCount: 5,
+    })
+    const winder = StairSegmentNode.parse({
+      id: 'sseg_winder',
+      width: 1.0,
+      length: 1.0,
+      height: 0.6,
+      stepCount: 3,
+      segmentType: 'winder',
+      attachmentSide: 'left',
+    })
+    const flight2 = StairSegmentNode.parse({
+      id: 'sseg_flight2',
+      width: 1.0,
+      length: 2.0,
+      height: 1.0,
+      stepCount: 5,
+      attachmentSide: 'front',
+    })
+    const stair = StairNode.parse({
+      id: 'stair_quarter_turn',
+      parentId: 'level_ground',
+      children: [flight1.id, winder.id, flight2.id],
+    })
+    const geometry = buildStairFloorplan(stair, {
+      resolve: () => undefined,
+      children: [flight1, winder, flight2],
+      siblings: [],
+      parent: LevelNode.parse({ id: 'level_ground' }),
+    } satisfies GeometryContext)
+
+    expect(geometry?.kind).toBe('group')
+    expect(geometry?.children.length).toBeGreaterThan(0)
+
+    const arrowPolyline = geometry?.children.find(
+      (child) =>
+        child.kind === 'polyline' &&
+        readFloorplanGeometryMetadata(child).annotationRole === 'stair-annotation',
+    )
+    expect(arrowPolyline).toBeDefined()
+    if (arrowPolyline && arrowPolyline.kind === 'polyline') {
+      // Smooth arc + straight segments produces a multi-point polyline (> 10 points)
+      expect(arrowPolyline.points.length).toBeGreaterThan(10)
+    }
+  })
 })

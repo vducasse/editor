@@ -59,21 +59,38 @@ export function computeSegmentTransforms(segments: StairSegmentNode[]): SegmentT
     let attachZ = 0
     let rotationDelta = 0
 
-    switch (segment.attachmentSide) {
-      case 'front':
-        attachX = 0
-        attachZ = previous.length
-        break
-      case 'left':
+    if (previous.segmentType === 'winder') {
+      const isTurnRight = previous.attachmentSide !== 'right'
+      if (isTurnRight) {
         attachX = previous.width / 2
         attachZ = previous.length / 2
         rotationDelta = Math.PI / 2
-        break
-      case 'right':
+      } else {
         attachX = -previous.width / 2
         attachZ = previous.length / 2
         rotationDelta = -Math.PI / 2
-        break
+      }
+    } else if (segment.segmentType === 'winder') {
+      attachX = 0
+      attachZ = previous.length
+      rotationDelta = 0
+    } else {
+      switch (segment.attachmentSide) {
+        case 'front':
+          attachX = 0
+          attachZ = previous.length
+          break
+        case 'left':
+          attachX = previous.width / 2
+          attachZ = previous.length / 2
+          rotationDelta = Math.PI / 2
+          break
+        case 'right':
+          attachX = -previous.width / 2
+          attachZ = previous.length / 2
+          rotationDelta = -Math.PI / 2
+          break
+      }
     }
 
     const [deltaX, deltaZ] = rotateXZ(attachX, attachZ, currentRot)

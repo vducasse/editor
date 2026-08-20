@@ -3,7 +3,7 @@ import { z } from 'zod'
 import { BaseNode, nodeType, objectId } from '../base'
 import { MaterialSchema } from '../material'
 
-export const StairSegmentType = z.enum(['stair', 'landing'])
+export const StairSegmentType = z.enum(['stair', 'landing', 'winder'])
 
 export type StairSegmentType = z.infer<typeof StairSegmentType>
 

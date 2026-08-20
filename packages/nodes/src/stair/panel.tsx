@@ -181,19 +181,26 @@ export default function StairPanel() {
   const handleAddFlight = useCallback(() => {
     if (!node) return
     const { fillToFloor } = getLastSegmentFillDefaults()
+    const totalRise = resolveStairTotalRise(node, nodes)
+    const existingRise = segments.reduce((sum, s) => sum + (s.height ?? 0), 0)
+    const remainingRise = totalRise - existingRise
+    const height = remainingRise > 0.3 ? Math.round(remainingRise * 100) / 100 : 2.5
+    const stepCount = Math.max(2, Math.round(height / 0.18))
+    const length = Math.round(stepCount * 0.28 * 100) / 100
+
     const segment = StairSegmentNodeSchema.parse({
       segmentType: 'stair',
       width: 1.0,
-      length: 3.0,
-      height: 2.5,
-      stepCount: 10,
+      length,
+      height,
+      stepCount,
       attachmentSide: 'front',
       fillToFloor,
       thickness: 0.25,
       position: [0, 0, 0],
     })
     createNode(segment, node.id as AnyNodeId)
-  }, [node, createNode, getLastSegmentFillDefaults])
+  }, [node, nodes, segments, createNode, getLastSegmentFillDefaults])
 
   const handleAddLanding = useCallback(() => {
     if (!node) return
@@ -211,6 +218,32 @@ export default function StairPanel() {
     })
     createNode(segment, node.id as AnyNodeId)
   }, [node, createNode, getLastSegmentFillDefaults])
+
+  const handleAddWinder = useCallback(() => {
+    if (!node) return
+    const { fillToFloor } = getLastSegmentFillDefaults()
+    const totalRise = resolveStairTotalRise(node, nodes)
+    const existingRise = segments.reduce((sum, s) => sum + (s.height ?? 0), 0)
+    const remainingRise = totalRise - existingRise
+    const defaultWinderHeight = 0.54
+    const height =
+      remainingRise > 0.2 && remainingRise < defaultWinderHeight + 0.3
+        ? Math.round(remainingRise * 100) / 100
+        : defaultWinderHeight
+
+    const segment = StairSegmentNodeSchema.parse({
+      segmentType: 'winder',
+      width: 1.0,
+      length: 1.0,
+      height,
+      stepCount: 3,
+      attachmentSide: 'right',
+      fillToFloor,
+      thickness: 0.25,
+      position: [0, 0, 0],
+    })
+    createNode(segment, node.id as AnyNodeId)
+  }, [node, nodes, segments, createNode, getLastSegmentFillDefaults])
 
   const handleSelectSegment = useCallback(
     (segmentId: string) => {
@@ -434,7 +467,7 @@ export default function StairPanel() {
               </button>
             ))}
           </div>
-          <div className="flex gap-1.5">
+          <div className="flex flex-wrap gap-1.5">
             <ActionButton
               icon={<Plus className="h-3.5 w-3.5" />}
               label="Add flight"
@@ -444,6 +477,11 @@ export default function StairPanel() {
               icon={<Plus className="h-3.5 w-3.5" />}
               label="Add landing"
               onClick={handleAddLanding}
+            />
+            <ActionButton
+              icon={<Plus className="h-3.5 w-3.5" />}
+              label="Add winder"
+              onClick={handleAddWinder}
             />
           </div>
         </PanelSection>

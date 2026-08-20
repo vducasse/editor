@@ -7,14 +7,25 @@ import {
   useRegistry,
   useScene,
 } from '@pascal-app/core'
-import { getStraightStairSegmentBodyMaterials, useNodeEvents, useViewer } from '@pascal-app/viewer'
+import {
+  getStairBodyMaterials,
+  getStraightStairSegmentBodyMaterials,
+  useNodeEvents,
+  useViewer,
+} from '@pascal-app/viewer'
 import { useEffect, useLayoutEffect, useMemo, useRef } from 'react'
 import type * as THREE from 'three'
 import { createPlaceholderGeometry } from '../shared/placeholder-geometry'
+import {
+  resolveStairSlotMaterial,
+  STAIR_BODY_SLOT_DEFAULT,
+  STAIR_TREADS_SLOT_DEFAULT,
+} from '../stair/slots'
 
 export const StairSegmentRenderer = ({ node }: { node: StairSegmentNode }) => {
   const ref = useRef<THREE.Mesh>(null!)
   const nodes = useScene((state) => state.nodes)
+  const sceneMaterials = useScene((state) => state.materials)
 
   useRegistry(node.id, 'stair-segment', ref)
 
@@ -31,29 +42,37 @@ export const StairSegmentRenderer = ({ node }: { node: StairSegmentNode }) => {
     : undefined
 
   const material = useMemo(() => {
+    if (parentNode) {
+      const baseBodyMaterials = getStairBodyMaterials(parentNode, shading, textures, colorPreset)
+      return [
+        resolveStairSlotMaterial(
+          parentNode,
+          'treads',
+          STAIR_TREADS_SLOT_DEFAULT,
+          baseBodyMaterials[0]!,
+          sceneMaterials,
+          shading,
+          textures,
+        ),
+        resolveStairSlotMaterial(
+          parentNode,
+          'body',
+          STAIR_BODY_SLOT_DEFAULT,
+          baseBodyMaterials[1]!,
+          sceneMaterials,
+          shading,
+          textures,
+        ),
+      ]
+    }
     return getStraightStairSegmentBodyMaterials(node, parentNode, shading, textures, colorPreset)
   }, [
     shading,
     textures,
     colorPreset,
-    node.materialPreset,
-    node.material,
-    node.material?.preset,
-    node.material?.properties,
-    node.material?.texture,
-    parentNode?.materialPreset,
-    parentNode?.material,
-    parentNode?.material?.preset,
-    parentNode?.material?.properties,
-    parentNode?.material?.texture,
-    parentNode?.railingMaterialPreset,
-    parentNode?.railingMaterial,
-    parentNode?.sideMaterialPreset,
-    parentNode?.sideMaterial,
-    parentNode?.treadMaterialPreset,
-    parentNode?.treadMaterial,
     node,
     parentNode,
+    sceneMaterials,
   ])
 
   // 2 groups map 1:1 to the stair segment's 2-material array (body + tread).
