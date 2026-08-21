@@ -36,18 +36,24 @@ import {
   Vector3,
 } from 'three'
 import { creaseCrossings } from '../site/terrain-drape'
-import { SLAB_SIDE_SLOT_DEFAULT, SLAB_TOP_SLOT_DEFAULT, type SlabSlotId } from './slots'
+import {
+  SLAB_BOTTOM_SLOT_DEFAULT,
+  SLAB_SIDE_SLOT_DEFAULT,
+  SLAB_TOP_SLOT_DEFAULT,
+  type SlabSlotId,
+} from './slots'
 
 /**
  * Stage B builder for slab. Reuses `generateSlabGeometry` (pure
  * triangulation + hole CSG from viewer) and the same material cache
  * pattern the legacy slab renderer used.
  *
- * Materials follow the unified slot model: the single `surface` slot resolves
- * `node.slots.surface` (a shared scene material or `library:` finish) → the
- * legacy inline `node.material` / `materialPreset` (pre-slot-model scenes) →
- * the declared slot default colour. Textures-off collapses to the themed
- * `floor` role — the guaranteed monochrome escape hatch.
+ * Materials follow the unified slot model:
+ *   - `surface`: top floor face (defaults to floor wood/tile finish)
+ *   - `side`: vertical edges (defaults to exterior wall match or trim)
+ *   - `bottom`: underside ceiling (defaults to clean white ceiling finish)
+ *
+ * Textures-off collapses all to the themed `floor` role.
  */
 type SlabMaterial = Material & {
   alphaMap?: Texture | null
@@ -65,6 +71,7 @@ function getSlabSlotMaterial(
   colorPreset: ColorPreset,
   sceneTheme: string | undefined,
   sceneMaterials: GeometryContext['materials'],
+  polygonContext?: { walls: import('@pascal-app/core').WallNode[] },
 ): Material {
   // Textures-off mode takes the themed 'floor' role colour for every face — the
   // guaranteed escape hatch, independent of any slot override. FrontSide —
@@ -83,23 +90,46 @@ function getSlabSlotMaterial(
   }
 
   // Legacy inline material / preset (pre-slot-model scenes) applied to the whole
-  // slab — map it onto the top face only; sides take their own default.
+  // slab — map it onto the top face only; sides and bottom take their own default.
   if (slotId === 'surface' && (node.materialPreset || node.material)) {
     return getLegacySlabMaterial(node, shading)
   }
 
+  // If side slot is unpainted, check if any wall in the level has an exterior material/preset
+  if (slotId === 'side' && polygonContext && polygonContext.walls.length > 0) {
+    for (const wall of polygonContext.walls) {
+      const extRef =
+        (wall.slots as Record<string, string> | undefined)?.exterior ??
+        (wall.slots as Record<string, string> | undefined)?.surface ??
+        wall.materialPreset ??
+        wall.material
+      if (typeof extRef === 'string') {
+        const resolved = resolveMaterialRef(extRef, sceneMaterials, shading)
+        if (resolved) return resolved
+      } else if (extRef && typeof extRef === 'object') {
+        return createMaterial(extRef, shading).clone()
+      }
+    }
+  }
+
   // Declared slot default — a catalog `library:` finish or a flat colour.
-  const slotDefault = slotId === 'side' ? SLAB_SIDE_SLOT_DEFAULT : SLAB_TOP_SLOT_DEFAULT
+  let slotDefault = SLAB_TOP_SLOT_DEFAULT
+  if (slotId === 'bottom') {
+    slotDefault = SLAB_BOTTOM_SLOT_DEFAULT
+  } else if (slotId === 'side') {
+    slotDefault = SLAB_SIDE_SLOT_DEFAULT
+  }
   return resolveSlotDefaultMaterial(slotDefault, shading, 0.8)
 }
 
-// Split the merged slab buffer into top-facing (floor) and everything-else
-// (vertical walls + underside) sub-geometries by per-triangle face normal, so
-// the two paintable slots get distinct materials + raycast tags. De-indexes
-// into per-face triangles (slabs are flat-shaded, so no shared-vertex seams).
+// Split the merged slab buffer into top-facing (floor), bottom-facing (ceiling),
+// and vertical side walls by per-triangle face normal, so the three paintable
+// slots get distinct materials + raycast tags. De-indexes into per-face
+// triangles (slabs are flat-shaded, so no shared-vertex seams).
 function splitSlabFacesByFacing(geometry: BufferGeometry): {
   top: BufferGeometry
   side: BufferGeometry
+  bottom: BufferGeometry
 } {
   const position = geometry.getAttribute('position')
   const uv = geometry.getAttribute('uv')
@@ -108,6 +138,7 @@ function splitSlabFacesByFacing(geometry: BufferGeometry): {
 
   const top = { pos: [] as number[], uv: [] as number[] }
   const side = { pos: [] as number[], uv: [] as number[] }
+  const bottom = { pos: [] as number[], uv: [] as number[] }
   const a = new Vector3()
   const b = new Vector3()
   const c = new Vector3()
@@ -126,8 +157,8 @@ function splitSlabFacesByFacing(geometry: BufferGeometry): {
     ac.subVectors(c, a)
     normal.crossVectors(ab, ac)
     const lengthSq = normal.lengthSq()
-    const isTop = lengthSq > 1e-12 && normal.y / Math.sqrt(lengthSq) > 0.5
-    const target = isTop ? top : side
+    const ny = lengthSq > 1e-12 ? normal.y / Math.sqrt(lengthSq) : 0
+    const target = ny > 0.5 ? top : ny < -0.5 ? bottom : side
     for (const i of [i0, i1, i2]) {
       target.pos.push(position.getX(i), position.getY(i), position.getZ(i))
       if (uv) target.uv.push(uv.getX(i), uv.getY(i))
@@ -145,7 +176,7 @@ function splitSlabFacesByFacing(geometry: BufferGeometry): {
     return geo
   }
 
-  return { top: build(top), side: build(side) }
+  return { top: build(top), side: build(side), bottom: build(bottom) }
 }
 
 function getLegacySlabMaterial(node: SlabNode, shading: RenderShading): Material {
@@ -276,7 +307,7 @@ export function buildSlabGeometry(
   const group = new Group()
   const polygonContext = slabPolygonContextFromGeometry(ctx)
   const merged = generateSlabGeometry(node, polygonContext)
-  const { top, side } = splitSlabFacesByFacing(merged)
+  const { top, side, bottom } = splitSlabFacesByFacing(merged)
   merged.dispose()
 
   const elevation = node.elevation ?? 0.05
@@ -285,6 +316,7 @@ export function buildSlabGeometry(
   for (const [slotId, geometry] of [
     ['surface', top],
     ['side', side],
+    ['bottom', bottom],
   ] as const) {
     const material = getSlabSlotMaterial(
       node,
@@ -294,6 +326,7 @@ export function buildSlabGeometry(
       colorPreset,
       sceneTheme,
       ctx?.materials,
+      polygonContext,
     )
     const mesh = new Mesh(geometry, material)
     mesh.castShadow = true
