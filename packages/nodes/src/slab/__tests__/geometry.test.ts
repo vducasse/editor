@@ -47,7 +47,7 @@ describe('buildSlabGeometry', () => {
     const group = buildSlabGeometry(slab, undefined, 'solid', false)
     const meshes = group.children.filter((child): child is Mesh => child instanceof Mesh)
 
-    expect(meshes).toHaveLength(2)
+    expect(meshes).toHaveLength(3)
     for (const mesh of meshes) {
       const uv = mesh.geometry.getAttribute('uv')
       const uv2 = mesh.geometry.getAttribute('uv2')
@@ -117,9 +117,9 @@ describe('buildSlabGeometry', () => {
 
     const group = buildSlabGeometry(slab, geometryContext(site), 'solid', false)
     const meshes = group.children.filter((child): child is Mesh => child instanceof Mesh)
-    expect(meshes).toHaveLength(3)
+    expect(meshes).toHaveLength(4)
 
-    const fill = meshes[2]!
+    const fill = meshes[3]!
     fill.geometry.computeBoundingBox()
     expect(fill.userData.slotId).toBe('side')
     expect(fill.geometry.boundingBox?.min.y).toBeCloseTo(0)
@@ -141,7 +141,7 @@ describe('buildSlabGeometry', () => {
     })
 
     const group = buildSlabGeometry(slab, geometryContext(site), 'solid', false)
-    const fill = group.children.filter((child): child is Mesh => child instanceof Mesh)[2]!
+    const fill = group.children.filter((child): child is Mesh => child instanceof Mesh)[3]!
     fill.geometry.computeBoundingBox()
     expect(fill.geometry.boundingBox?.min.y).toBeCloseTo(0)
     expect(fill.geometry.boundingBox?.max.y).toBeCloseTo(0.3)

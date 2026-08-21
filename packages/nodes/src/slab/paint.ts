@@ -11,11 +11,13 @@ export const slabPaint = createSlotPaintCapability({
   roomScope: true,
   resolveRole: ({ hitObject }) => {
     const slotId = (hitObject?.userData as { slotId?: string } | undefined)?.slotId
-    return slotId === 'side' ? 'side' : 'surface'
+    if (slotId === 'bottom') return 'bottom'
+    if (slotId === 'side') return 'side'
+    return 'surface'
   },
   applyPreview: previewGeometrySlot,
   // Legacy inline material applied to the whole slab → maps onto the top only;
-  // the side picker shows its own default.
+  // the side and bottom pickers show their own defaults.
   legacyEffective: (node: AnyNode, role: string) => {
     if (role !== 'surface') return null
     const slab = node as SlabNode
