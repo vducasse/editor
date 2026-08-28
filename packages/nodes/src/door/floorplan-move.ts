@@ -214,7 +214,13 @@ export const doorFloorplanMoveTarget: FloorplanMoveTarget<DoorNode> = ({ node })
         get: (id: AnyNodeId) => nodes[id],
         nodes: () => nodes,
       }
-      const { clampedX, clampedY, fits } = clampToWall(hit.wall, snappedLocalX, node.width, node.height, sceneReader)
+      const { clampedX, clampedY, fits } = clampToWall(
+        hit.wall,
+        snappedLocalX,
+        node.width,
+        node.height,
+        sceneReader,
+      )
       lastFits = fits
 
       // One click per real position step, keyed on the SNAPPED along-wall value
@@ -266,13 +272,13 @@ export const doorFloorplanMoveTarget: FloorplanMoveTarget<DoorNode> = ({ node })
       const collides =
         !lastFits ||
         hasWallChildOverlap(
-        lastValid.parentId,
-        lastValid.position[0],
-        lastValid.position[1],
-        live.width,
-        live.height,
-        live.id,
-      )
+          lastValid.parentId,
+          lastValid.position[0],
+          lastValid.position[1],
+          live.width,
+          live.height,
+          live.id,
+        )
       return resolveOpeningPlacement({ collides, forcePlace }).placeable
     },
     commit() {

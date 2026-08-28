@@ -150,6 +150,7 @@ export function snapContextOf(args: {
     handle?: string
     operator?: string
   }
+  movingNodeType?: string | null
   mode: string
   tool: string | null
   profileOf: (typeOrTool: string) => SnapProfile | undefined
@@ -159,7 +160,12 @@ export function snapContextOf(args: {
   // to `true` (the structural draw default) when not supplied.
   draftDirectionalOf?: (typeOrTool: string) => boolean
 }): SnapContext | null {
-  const { scope, mode, tool, profileOf, profileOfNode, draftDirectionalOf } = args
+  const { scope, movingNodeType, mode, tool, profileOf, profileOfNode, draftDirectionalOf } = args
+  // Direct node movement (e.g. moving a window, door, or item) activates the
+  // kind's snapping profile so Shift/Ctrl keyboard cycling and HUD chips are active.
+  if (movingNodeType) {
+    return contextForProfile(profileOf(movingNodeType), false)
+  }
   // The group-move gizmo translates the whole selection — same no-angle
   // treatment as a single-node move, so Shift cycles the 'item' modes and the
   // HUD shows the item snapping chips for the drag.

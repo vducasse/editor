@@ -260,13 +260,13 @@ export const windowFloorplanMoveTarget: FloorplanMoveTarget<WindowNode> = ({ nod
       const collides =
         !lastFits ||
         hasWallChildOverlap(
-        lastValid.parentId,
-        lastValid.position[0],
-        lastValid.position[1],
-        live.width,
-        live.height,
-        live.id,
-      )
+          lastValid.parentId,
+          lastValid.position[0],
+          lastValid.position[1],
+          live.width,
+          live.height,
+          live.id,
+        )
       return resolveOpeningPlacement({ collides, forcePlace }).placeable
     },
     commit() {

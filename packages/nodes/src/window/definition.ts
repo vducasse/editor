@@ -37,7 +37,7 @@ function readWallLength(w: WindowNodeType, scene: { get: (id: AnyNodeId) => unkn
   const hostId = w.wallId || w.parentId
   if (!hostId) return Number.POSITIVE_INFINITY
   const wall = scene.get(hostId as AnyNodeId) as WallNode | undefined
-  if (!wall) return Number.POSITIVE_INFINITY
+  if (wall?.type !== 'wall' || !wall.start || !wall.end) return Number.POSITIVE_INFINITY
   return Math.hypot(wall.end[0] - wall.start[0], wall.end[1] - wall.start[1])
 }
 
@@ -86,7 +86,10 @@ function windowWidthHandle(side: 'left' | 'right'): HandleDescriptor<WindowNodeT
 
       const topY = n.position[1] + n.height / 2
       const hostId = n.wallId || n.parentId
-      return Math.max(MIN_WINDOW_WIDTH, readHostWallCeilingMaxWidth(hostId, scene as any, fixedEdgeS, growSign, topY, maxWallBound))
+      return Math.max(
+        MIN_WINDOW_WIDTH,
+        readHostWallCeilingMaxWidth(hostId, scene as any, fixedEdgeS, growSign, topY, maxWallBound),
+      )
     },
     currentValue: (n) => n.width,
     onDrag: (node) => publishOpeningResizeGuides(node, true),
@@ -130,7 +133,7 @@ function windowHeightHandle(edge: 'top' | 'bottom'): HandleDescriptor<WindowNode
       // Maximum: distance from the anchored edge to the wall's allowed bounds. Top arrow caps at the wall's resolved ceiling - bottom;
       // bottom arrow caps at top (positive Y room above the floor).
       const hostId = n.wallId || n.parentId
-        
+
       // A sloped wall's ceiling varies across the window's width. To prevent corners
       // poking out above the slope, the height limit must be the lowest ceiling
       // point across the entire span of the window.
@@ -140,7 +143,7 @@ function windowHeightHandle(edge: 'top' | 'bottom'): HandleDescriptor<WindowNode
       const wallHRight = readHostWallCeiling(hostId, scene as any, rightS)
       const wallHCenter = readHostWallCeiling(hostId, scene as any, n.position[0])
       const wallH = Math.min(wallHLeft, wallHRight, wallHCenter)
-      
+
       const anchored = edge === 'top' ? n.position[1] - n.height / 2 : n.position[1] + n.height / 2
       return edge === 'top'
         ? Math.max(MIN_WINDOW_HEIGHT, wallH - anchored)

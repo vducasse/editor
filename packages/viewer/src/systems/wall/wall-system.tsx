@@ -1,6 +1,7 @@
 import {
   type AnyNode,
   type AnyNodeId,
+  clampWallEndHeightOffset,
   DEFAULT_LEVEL_HEIGHT,
   type DoorNode,
   getAdjacentWallIds,
@@ -454,8 +455,7 @@ function getWallBandSplitPlanes(wall: WallNode, effectiveWallHeight: number): nu
   if (bands.count >= 4) planes.push(bands.upperTop)
   const maxWallHeight = effectiveWallHeight + Math.max(0, wall.endHeightOffset ?? 0)
   return planes.filter(
-    (plane) =>
-      plane > WALL_BAND_SPLIT_EPSILON && plane < maxWallHeight - WALL_BAND_SPLIT_EPSILON,
+    (plane) => plane > WALL_BAND_SPLIT_EPSILON && plane < maxWallHeight - WALL_BAND_SPLIT_EPSILON,
   )
 }
 
@@ -984,8 +984,7 @@ function applyWallEndHeightSlope(
   if (!rawOffset || wallLength < 1e-9) {
     return
   }
-  const minEndHeight = 0.01
-  const endHeightOffset = Math.max(rawOffset, -(bodyHeight - minEndHeight))
+  const endHeightOffset = clampWallEndHeightOffset(rawOffset, bodyHeight)
   const slope = endHeightOffset / wallLength
   const position = geometry.getAttribute('position') as THREE.BufferAttribute
 
@@ -1010,7 +1009,7 @@ export function generateExtrudedWall(
 ): THREE.BufferGeometry {
   const wallStart: Point2D = { x: wallNode.start[0], y: wallNode.start[1] }
   const wallEnd: Point2D = { x: wallNode.end[0], y: wallNode.end[1] }
-  const topElevation = resolveWallTop(wallNode, storeyHeight, slabElevation)
+  const topElevation = resolveWallTop(wallNode, storeyHeight, slabElevation, 0)
   const effectiveWallHeight = topElevation - slabElevation
   const effectiveBaseElevation = Math.min(baseElevation, slabElevation)
   const localBottom = effectiveBaseElevation - slabElevation

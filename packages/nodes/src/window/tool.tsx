@@ -355,7 +355,8 @@ const WindowTool: React.FC = () => {
         height,
         useScene.getState().nodes,
       )
-      const valid = fits && !hasWallChildOverlap(wall.id, clampedX, clampedY, width, height, ignoreId)
+      const valid =
+        fits && !hasWallChildOverlap(wall.id, clampedX, clampedY, width, height, ignoreId)
       return { clampedX, clampedY, valid }
     }
 

@@ -1,6 +1,7 @@
 'use client'
 
 import {
+  clampWallEndHeightOffset,
   getWallCurveFrameAt,
   getWallMiterBoundaryPoints,
   getWallThickness,
@@ -415,14 +416,9 @@ function trimOpeningRanges(
   const dz = node.end[1] - node.start[1]
   const wallLength = Math.hypot(dx, dz)
   const wallHeight = yBottom + height
-  const minEndHeight = 0.01
-  const endHeightOffset = node.endHeightOffset
-    ? Math.max(node.endHeightOffset, -(wallHeight - minEndHeight))
-    : 0
+  const endHeightOffset = clampWallEndHeightOffset(node.endHeightOffset, wallHeight)
   const slope =
-    kind === 'crown' && endHeightOffset && wallLength > EPS
-      ? endHeightOffset / wallLength
-      : 0
+    kind === 'crown' && endHeightOffset && wallLength > EPS ? endHeightOffset / wallLength : 0
 
   return childrenNodes
     .filter((child) => child.type === 'door' || child.type === 'window')
@@ -537,8 +533,7 @@ function applyTrimSlope(geometry: THREE.BufferGeometry, node: WallNode, wallHeig
   const position = geometry.getAttribute('position') as THREE.BufferAttribute | undefined
   if (!position) return
 
-  const minEndHeight = 0.01
-  const endHeightOffset = Math.max(rawOffset, -(wallHeight - minEndHeight))
+  const endHeightOffset = clampWallEndHeightOffset(rawOffset, wallHeight)
   const slope = endHeightOffset / wallLength
 
   for (let index = 0; index < position.count; index += 1) {
@@ -560,9 +555,7 @@ export function buildTrimGeometry(
 ) {
   const wallHeight = resolveWallOpeningCeiling(node, useScene.getState().nodes)
   const height = trim.height
-  const minEndHeight = 0.01
-  const rawOffset = node.endHeightOffset ?? 0
-  const endHeightOffset = Math.max(rawOffset, -(wallHeight - minEndHeight))
+  const endHeightOffset = clampWallEndHeightOffset(node.endHeightOffset, wallHeight)
   const minWallHeight = Math.min(wallHeight, wallHeight + endHeightOffset)
 
   const chairRailOffsetY = trim.offsetY ?? WALL_CHAIR_RAIL_DEFAULT.offsetY ?? 0.9
