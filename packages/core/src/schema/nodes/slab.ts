@@ -27,6 +27,8 @@ export const SlabNode = BaseNode.extend({
   recessedRimElevation: z.number().finite().optional(),
   fillToTerrain: z.boolean().optional(),
   autoFromWalls: z.boolean().default(false),
+  slopeAngle: z.number().min(-60).max(60).optional(), // Slope pitch in degrees (-60 to +60, positive = up, negative = down)
+  slopeDirection: z.number().min(0).max(360).optional(), // Slope azimuth direction in degrees
 }).describe(
   dedent`
   Slab node - used to represent a slab/floor in the building
@@ -39,6 +41,8 @@ export const SlabNode = BaseNode.extend({
   - recessedRimElevation: optional rim anchor for a raised/lowered recess; absent means the level plane
   - fillToTerrain: extends a solid slab's perimeter downward to terrain without changing its flat top or authored thickness
   - autoFromWalls: whether the slab is automatically generated from a closed wall loop
+  - slopeAngle: slope pitch in degrees (-60 to +60, positive slopes up, negative slopes down)
+  - slopeDirection: azimuth direction of the slope incline in degrees (0 to 360)
   `,
 )
 

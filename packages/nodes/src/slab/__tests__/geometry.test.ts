@@ -146,4 +146,79 @@ describe('buildSlabGeometry', () => {
     expect(fill.geometry.boundingBox?.min.y).toBeCloseTo(0)
     expect(fill.geometry.boundingBox?.max.y).toBeCloseTo(0.3)
   })
+
+  test('builds a sloped slab ramp with correct elevation gradient and 3-way slot separation', () => {
+    // 10m long slab in X direction: [0, 0] to [10, 2]
+    // Slope angle: ~5.71° (tan = 0.1, rises 1.0m over 10m)
+    // Slope direction: 0° (along +X)
+    const slab = SlabNode.parse({
+      elevation: 0.2,
+      thickness: 0.1,
+      slopeAngle: 5.710593, // tan(5.710593°) ≈ 0.1
+      slopeDirection: 0,
+      polygon: [
+        [0, 0],
+        [10, 0],
+        [10, 2],
+        [0, 2],
+      ],
+    })
+
+    const group = buildSlabGeometry(slab, undefined, 'solid', false)
+    const meshes = group.children.filter((child): child is Mesh => child instanceof Mesh)
+    expect(meshes).toHaveLength(3)
+
+    const topMesh = meshes.find((m) => m.userData.slotId === 'surface')!
+    const sideMesh = meshes.find((m) => m.userData.slotId === 'side')!
+    const bottomMesh = meshes.find((m) => m.userData.slotId === 'bottom')!
+
+    expect(topMesh).toBeDefined()
+    expect(sideMesh).toBeDefined()
+    expect(bottomMesh).toBeDefined()
+
+    topMesh.geometry.computeBoundingBox()
+    bottomMesh.geometry.computeBoundingBox()
+
+    // Top surface should span from elevation (0.2) to elevation + 10 * 0.1 = 1.2
+    expect(topMesh.geometry.boundingBox?.min.y).toBeCloseTo(0.2, 2)
+    expect(topMesh.geometry.boundingBox?.max.y).toBeCloseTo(1.2, 2)
+
+    // Bottom surface should span from 0.1 (0.2 - 0.1) to 1.1 (1.2 - 0.1)
+    expect(bottomMesh.geometry.boundingBox?.min.y).toBeCloseTo(0.1, 2)
+    expect(bottomMesh.geometry.boundingBox?.max.y).toBeCloseTo(1.1, 2)
+  })
+
+  test('builds a descending slab ramp with negative slopeAngle', () => {
+    // 10m long slab in X direction: [0, 0] to [10, 2]
+    // Slope angle: -5.710593° (tan = -0.1, drops 1.0m over 10m)
+    const slab = SlabNode.parse({
+      elevation: 1.0,
+      thickness: 0.1,
+      slopeAngle: -5.710593,
+      slopeDirection: 0,
+      polygon: [
+        [0, 0],
+        [10, 0],
+        [10, 2],
+        [0, 2],
+      ],
+    })
+
+    const group = buildSlabGeometry(slab, undefined, 'solid', false)
+    const meshes = group.children.filter((child): child is Mesh => child instanceof Mesh)
+    const topMesh = meshes.find((m) => m.userData.slotId === 'surface')!
+    const bottomMesh = meshes.find((m) => m.userData.slotId === 'bottom')!
+
+    topMesh.geometry.computeBoundingBox()
+    bottomMesh.geometry.computeBoundingBox()
+
+    // Top surface drops from 1.0 at x=0 down to 0.0 at x=10
+    expect(topMesh.geometry.boundingBox?.min.y).toBeCloseTo(0.0, 2)
+    expect(topMesh.geometry.boundingBox?.max.y).toBeCloseTo(1.0, 2)
+
+    // Bottom surface drops from 0.9 at x=0 down to -0.1 at x=10
+    expect(bottomMesh.geometry.boundingBox?.min.y).toBeCloseTo(-0.1, 2)
+    expect(bottomMesh.geometry.boundingBox?.max.y).toBeCloseTo(0.9, 2)
+  })
 })
+

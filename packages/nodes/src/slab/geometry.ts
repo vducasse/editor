@@ -158,7 +158,7 @@ function splitSlabFacesByFacing(geometry: BufferGeometry): {
     normal.crossVectors(ab, ac)
     const lengthSq = normal.lengthSq()
     const ny = lengthSq > 1e-12 ? normal.y / Math.sqrt(lengthSq) : 0
-    const target = ny > 0.5 ? top : ny < -0.5 ? bottom : side
+    const target = ny > 0.3 ? top : ny < -0.3 ? bottom : side
     for (const i of [i0, i1, i2]) {
       target.pos.push(position.getX(i), position.getY(i), position.getZ(i))
       if (uv) target.uv.push(uv.getX(i), uv.getY(i))

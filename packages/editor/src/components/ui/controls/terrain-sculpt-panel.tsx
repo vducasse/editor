@@ -7,8 +7,13 @@ import {
   type TerrainVerb,
   useScene,
 } from '@pascal-app/core'
-import { Mountain, Pipette } from 'lucide-react'
-import { brushRadiusRange, flattenSite, resetSiteTerrain } from '../../../lib/terrain-sculpt'
+import { Mountain, Pipette, Shovel } from 'lucide-react'
+import {
+  brushRadiusRange,
+  excavateSiteToModel,
+  flattenSite,
+  resetSiteTerrain,
+} from '../../../lib/terrain-sculpt'
 import useEditor from '../../../store/use-editor'
 import { Button } from '../primitives/button'
 import { SegmentedControl } from './segmented-control'
@@ -165,28 +170,41 @@ export function TerrainSculptPanel() {
         </div>
       )}
 
-      <div className="flex items-center gap-2 border-border/60 border-t pt-3">
+      <div className="flex flex-col gap-2 border-border/60 border-t pt-3">
         <Button
-          className="flex-1"
+          className="w-full"
           disabled={!site}
-          onClick={() => site && flattenSite(site, flattenTarget ?? 0)}
+          onClick={() => site && excavateSiteToModel(site, nodes)}
           size="sm"
           type="button"
           variant="outline"
         >
-          <Mountain />
-          Level lot
+          <Shovel />
+          Excavate to model
         </Button>
-        <Button
-          className="flex-1"
-          disabled={!site?.terrain}
-          onClick={() => site && resetSiteTerrain(site)}
-          size="sm"
-          type="button"
-          variant="outline"
-        >
-          Clear terrain
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            className="flex-1"
+            disabled={!site}
+            onClick={() => site && flattenSite(site, flattenTarget ?? 0)}
+            size="sm"
+            type="button"
+            variant="outline"
+          >
+            <Mountain />
+            Level lot
+          </Button>
+          <Button
+            className="flex-1"
+            disabled={!site?.terrain}
+            onClick={() => site && resetSiteTerrain(site)}
+            size="sm"
+            type="button"
+            variant="outline"
+          >
+            Clear terrain
+          </Button>
+        </div>
       </div>
     </div>
   )

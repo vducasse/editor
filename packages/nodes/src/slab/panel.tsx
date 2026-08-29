@@ -145,6 +145,20 @@ export function SlabPanel() {
     [handleUpdate],
   )
 
+  const handleSlopeAngleChange = useCallback(
+    (slopeAngle: number) => {
+      handleUpdate({ slopeAngle: Math.abs(slopeAngle) > 0 ? slopeAngle : undefined })
+    },
+    [handleUpdate],
+  )
+
+  const handleSlopeDirectionChange = useCallback(
+    (slopeDirection: number) => {
+      handleUpdate({ slopeDirection })
+    },
+    [handleUpdate],
+  )
+
   const handleFitToRoof = useCallback(async () => {
     const current = nodeRef.current
     if (!current) return
@@ -369,6 +383,39 @@ export function SlabPanel() {
           ))}
         </div>
       </PanelSection>
+
+      {!node.recessed && (
+        <PanelSection title="Slope & Ramp">
+          <SliderControl
+            label="Slope Angle"
+            max={45}
+            min={-45}
+            onChange={handleSlopeAngleChange}
+            precision={1}
+            step={0.5}
+            unit="°"
+            value={node.slopeAngle ?? 0}
+          />
+          {Math.abs(node.slopeAngle ?? 0) > 0 && (
+            <>
+              <SliderControl
+                label="Direction"
+                max={360}
+                min={0}
+                onChange={handleSlopeDirectionChange}
+                precision={0}
+                step={5}
+                unit="°"
+                value={node.slopeDirection ?? 0}
+              />
+              <div className="px-1 text-[11px] text-muted-foreground">
+                {(node.slopeAngle ?? 0) > 0 ? 'Ascending' : 'Descending'} gradient:{' '}
+                {Math.abs(Math.tan(((node.slopeAngle ?? 0) * Math.PI) / 180) * 100).toFixed(1)}%
+              </div>
+            </>
+          )}
+        </PanelSection>
+      )}
 
       <PanelSection title="Info">
         <div className="flex items-center justify-between px-2 py-1 text-muted-foreground text-sm">

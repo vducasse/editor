@@ -7,10 +7,14 @@
 // instead of e2e.
 
 import {
+  type AnyNode,
+  type AnyNodeId,
   type BrushSettings,
+  type BuildingNode,
   commitTerrainField,
   createTerrainField,
   DEFAULT_TERRAIN_SPACING,
+  getLevelElevations,
   type HeightPatch,
   isDatumField,
   minBrushRadius,
@@ -19,6 +23,7 @@ import {
   quantize,
   runAsSingleSceneHistoryStep,
   type SiteNode,
+  type SlabNode,
   sampleTarget,
   type TerrainField,
   type TerrainVerb,
@@ -279,6 +284,170 @@ export function resetSiteTerrain(site: SiteNode): void {
   })
 }
 
+type Point2D = [number, number]
+
+/**
+ * Excavate the terrain beneath all building slabs across the scene to match their
+ * underside elevations, carving building footprints and basements in a single step.
+ */
+export function excavateSiteToModel(site: SiteNode, nodes: Record<string, AnyNode>): void {
+  abandonLiveStroke(site)
+  const targets = collectSlabExcavationTargets(nodes)
+  if (targets.length === 0) return
+
+  const field = sculptFieldForSite(site)
+  const heights = new Int16Array(field.heights)
+  let changed = false
+
+  for (let r = 0; r < field.rows; r++) {
+    const z = field.origin[1] + r * field.spacing
+    for (let c = 0; c < field.cols; c++) {
+      const x = field.origin[0] + c * field.spacing
+
+      if (!terrainPointInsideSite(site, x, z)) continue
+
+      let minTargetY: number | null = null
+      for (const target of targets) {
+        if (x < target.minX || x > target.maxX || z < target.minZ || z > target.maxZ) {
+          continue
+        }
+        if (pointInPolygon2D([x, z], target.polygon, { includeBoundary: true })) {
+          const targetY = target.getWorldBaseY(x, z)
+          if (minTargetY === null || targetY < minTargetY) {
+            minTargetY = targetY
+          }
+        }
+      }
+
+      if (minTargetY !== null) {
+        const idx = r * field.cols + c
+        const currentHeightMetres = heights[idx]! * field.step
+        if (currentHeightMetres > minTargetY) {
+          heights[idx] = quantize(field, minTargetY)
+          changed = true
+        }
+      }
+    }
+  }
+
+  if (changed) {
+    commitStroke(site.id, { ...field, heights })
+  }
+}
+
+type SlabExcavationTarget = {
+  polygon: Point2D[]
+  getWorldBaseY: (wx: number, wz: number) => number
+  minX: number
+  minZ: number
+  maxX: number
+  maxZ: number
+}
+
+function collectSlabExcavationTargets(nodes: Record<string, AnyNode>): SlabExcavationTarget[] {
+  const targets: SlabExcavationTarget[] = []
+  const elevations = getLevelElevations(nodes as Record<AnyNodeId, AnyNode>)
+
+  const buildings = Object.values(nodes).filter(
+    (n): n is BuildingNode => n?.type === 'building',
+  )
+
+  for (const node of Object.values(nodes)) {
+    if (node?.type !== 'slab') continue
+    const slab = node as SlabNode
+    const points: Point2D[] = Array.isArray(slab.polygon)
+      ? (slab.polygon as Point2D[])
+      : ((slab.polygon as unknown as { points?: Point2D[] })?.points ?? [])
+    if (points.length < 3) continue
+
+    const levelId = slab.parentId
+    const levelElevation = levelId ? elevations.get(levelId) : undefined
+    const levelBaseY = levelElevation?.baseY ?? 0
+
+    const buildingId = levelElevation?.buildingId ?? null
+    const building = buildingId
+      ? (nodes[buildingId] as BuildingNode | undefined)
+      : buildings.find(
+          (b) =>
+            (b.children as string[] | undefined)?.includes(slab.id) ||
+            (levelId && (b.children as string[] | undefined)?.includes(levelId)),
+        )
+
+    const bPos = building?.position ?? [0, 0, 0]
+    const bRotY = building?.rotation?.[1] ?? 0
+
+    const slabElevation = slab.elevation ?? 0.05
+    const slabThickness = slab.thickness ?? 0.05
+    const baseLocalY = slabElevation - slabThickness
+    const worldLevelBaseY = (bPos[1] ?? 0) + levelBaseY
+
+    const slopeAngleDeg = slab.slopeAngle ?? 0
+    const slopeDirDeg = slab.slopeDirection ?? 0
+    const isSloped = Math.abs(slopeAngleDeg) > 1e-4
+
+    let slopeUx = 1
+    let slopeUz = 0
+    let tanSlope = 0
+    let minSlopeProj = 0
+
+    if (isSloped) {
+      const slopeAngleRad = (slopeAngleDeg * Math.PI) / 180
+      const slopeDirRad = (slopeDirDeg * Math.PI) / 180
+      slopeUx = Math.cos(slopeDirRad)
+      slopeUz = Math.sin(slopeDirRad)
+      tanSlope = Math.tan(slopeAngleRad)
+
+      minSlopeProj = Number.POSITIVE_INFINITY
+      for (const [px, pz] of points) {
+        const proj = px * slopeUx + pz * slopeUz
+        if (proj < minSlopeProj) minSlopeProj = proj
+      }
+    }
+
+    const cos = Math.cos(bRotY)
+    const sin = Math.sin(bRotY)
+    const px = bPos[0] ?? 0
+    const pz = bPos[2] ?? 0
+
+    const worldPolygon: Point2D[] = points.map(([x, z]) => {
+      if (bRotY === 0) return [x + px, z + pz]
+      return [cos * x + sin * z + px, -sin * x + cos * z + pz]
+    })
+
+    let minX = Number.POSITIVE_INFINITY
+    let minZ = Number.POSITIVE_INFINITY
+    let maxX = Number.NEGATIVE_INFINITY
+    let maxZ = Number.NEGATIVE_INFINITY
+    for (const [wx, wz] of worldPolygon) {
+      if (wx < minX) minX = wx
+      if (wx > maxX) maxX = wx
+      if (wz < minZ) minZ = wz
+      if (wz > maxZ) maxZ = wz
+    }
+
+    const getWorldBaseY = (wx: number, wz: number): number => {
+      if (!isSloped) return worldLevelBaseY + baseLocalY
+      const dx = wx - px
+      const dz = wz - pz
+      const lx = bRotY === 0 ? dx : cos * dx - sin * dz
+      const lz = bRotY === 0 ? dz : sin * dx + cos * dz
+      const dist = lx * slopeUx + lz * slopeUz - minSlopeProj
+      return worldLevelBaseY + baseLocalY + dist * tanSlope
+    }
+
+    targets.push({
+      polygon: worldPolygon,
+      getWorldBaseY,
+      minX,
+      minZ,
+      maxX,
+      maxZ,
+    })
+  }
+
+  return targets
+}
+
 /**
  * Persist a finished stroke as exactly one undo step.
  *
@@ -299,3 +468,4 @@ export function commitStroke(siteId: SiteNode['id'], field: TerrainField): void 
     })
   })
 }
+

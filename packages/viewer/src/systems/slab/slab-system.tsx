@@ -103,6 +103,41 @@ function generateSolidSlabGeometry(
 
   if (polygon.length < 3) return new THREE.BufferGeometry()
 
+  const slopeAngleDeg = slabNode.slopeAngle ?? 0
+  const slopeDirDeg = slabNode.slopeDirection ?? 0
+  const isSloped = Math.abs(slopeAngleDeg) > 1e-4
+
+  let slopeUx = 1
+  let slopeUz = 0
+  let tanSlope = 0
+  let minSlopeProj = 0
+
+  if (isSloped) {
+    const slopeAngleRad = (slopeAngleDeg * Math.PI) / 180
+    const slopeDirRad = (slopeDirDeg * Math.PI) / 180
+    slopeUx = Math.cos(slopeDirRad)
+    slopeUz = Math.sin(slopeDirRad)
+    tanSlope = Math.tan(slopeAngleRad)
+
+    minSlopeProj = Number.POSITIVE_INFINITY
+    for (const [px, pz] of polygon) {
+      const proj = px * slopeUx + pz * slopeUz
+      if (proj < minSlopeProj) minSlopeProj = proj
+    }
+  }
+
+  const getYTop = (x: number, z: number) => {
+    if (!isSloped) return elevation
+    const dist = x * slopeUx + z * slopeUz - minSlopeProj
+    return elevation + dist * tanSlope
+  }
+
+  const getYBottom = (x: number, z: number) => {
+    if (!isSloped) return bottom
+    const dist = x * slopeUx + z * slopeUz - minSlopeProj
+    return bottom + dist * tanSlope
+  }
+
   const positions: number[] = []
   const uvs: number[] = []
   const indices: number[] = []
@@ -114,13 +149,18 @@ function generateSolidSlabGeometry(
   const addWall = (a: THREE.Vector2, b: THREE.Vector2, flipped: boolean) => {
     const base = positions.length / 3
     const len = Math.max(Math.hypot(b.x - a.x, b.y - a.y), 0.001)
-    positions.push(a.x, bottom, a.y)
+    const yBotA = getYBottom(a.x, a.y)
+    const yBotB = getYBottom(b.x, b.y)
+    const yTopA = getYTop(a.x, a.y)
+    const yTopB = getYTop(b.x, b.y)
+
+    positions.push(a.x, yBotA, a.y)
     uvs.push(0, 0)
-    positions.push(b.x, bottom, b.y)
+    positions.push(b.x, yBotB, b.y)
     uvs.push(len, 0)
-    positions.push(b.x, elevation, b.y)
+    positions.push(b.x, yTopB, b.y)
     uvs.push(len, thickness)
-    positions.push(a.x, elevation, a.y)
+    positions.push(a.x, yTopA, a.y)
     uvs.push(0, thickness)
     // Standard winding on a CCW polygon gives inward-facing normals (see pool
     // path), so the unflipped quad faces outward; flipped is its back face.
@@ -146,12 +186,12 @@ function generateSolidSlabGeometry(
     const capPoints = [...contour2d, ...holes2d.flat()]
     const topBase = positions.length / 3
     for (const p of capPoints) {
-      positions.push(p.x, elevation, p.y)
+      positions.push(p.x, getYTop(p.x, p.y), p.y)
       uvs.push(p.x, -p.y)
     }
     const bottomBase = positions.length / 3
     for (const p of capPoints) {
-      positions.push(p.x, bottom, p.y)
+      positions.push(p.x, getYBottom(p.x, p.y), p.y)
       uvs.push(p.x, -p.y)
     }
 

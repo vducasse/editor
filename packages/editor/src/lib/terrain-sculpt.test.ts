@@ -13,6 +13,7 @@ import {
   brushRadiusRange,
   clampBrushRadius,
   clipTerrainPatchToSite,
+  excavateSiteToModel,
   fieldExtentForSite,
   flattenSite,
   resetSiteTerrain,
@@ -427,3 +428,300 @@ describe('lot-wide terrain writes vs a stroke in flight', () => {
     expect(terrainFieldOf(useScene.getState().nodes[lotSiteId] as SiteNode)).toBeNull()
   })
 })
+
+describe('excavateSiteToModel', () => {
+  const siteId = 'site_excavate' as SiteNode['id']
+
+  beforeEach(() => {
+    useLiveTerrain.getState().endAll()
+    useScene.setState({ nodes: {}, rootNodeIds: [], dirtyNodes: new Set() } as never)
+    useScene.temporal.getState().clear()
+    useScene.temporal.getState().resume()
+  })
+
+  test('excavates terrain under a basement slab to its underside elevation', () => {
+    const siteNode: SiteNode = {
+      id: siteId,
+      type: 'site',
+      children: ['bldg_1'],
+      polygon: {
+        type: 'polygon',
+        points: [
+          [-20, -20],
+          [20, -20],
+          [20, 20],
+          [-20, 20],
+        ],
+      },
+    } as unknown as SiteNode
+
+    const nodes = {
+      [siteId]: siteNode,
+      bldg_1: {
+        id: 'bldg_1',
+        type: 'building',
+        position: [0, 0, 0],
+        rotation: [0, 0, 0],
+        children: ['level_basement'],
+      },
+      level_basement: {
+        id: 'level_basement',
+        type: 'level',
+        baseElevation: -2.2,
+        height: 2.2,
+        level: -1,
+        children: ['slab_basement'],
+      },
+      slab_basement: {
+        id: 'slab_basement',
+        type: 'slab',
+        parentId: 'level_basement',
+        polygon: [
+          [-5, -5],
+          [5, -5],
+          [5, 5],
+          [-5, 5],
+        ],
+        elevation: 0.05,
+        thickness: 0.2, // underside is -2.2 + (0.05 - 0.2) = -2.35
+      },
+    } as never
+
+    useScene.setState({ nodes, rootNodeIds: [siteId] } as never)
+
+    // Flat terrain at Y = 1.0 m
+    flattenSite(siteNode, 1.0)
+    const siteWithTerrain = useScene.getState().nodes[siteId] as SiteNode
+
+    excavateSiteToModel(siteWithTerrain, useScene.getState().nodes)
+
+    const updatedSite = useScene.getState().nodes[siteId] as SiteNode
+    const field = terrainFieldOf(updatedSite)!
+    expect(field).toBeDefined()
+
+    // Inside the basement slab (0, 0): should be excavated to -2.35 m
+    expect(heightAt(field, 0, 0)).toBeCloseTo(-2.35, 2)
+    expect(heightAt(field, 2, 2)).toBeCloseTo(-2.35, 2)
+
+    // Outside the basement slab (10, 10): should remain at 1.0 m
+    expect(heightAt(field, 10, 10)).toBeCloseTo(1.0, 2)
+  })
+
+  test('does not raise terrain that is already below the slab underside (cut-only)', () => {
+    const siteNode: SiteNode = {
+      id: siteId,
+      type: 'site',
+      children: ['bldg_1'],
+      polygon: {
+        type: 'polygon',
+        points: [
+          [-20, -20],
+          [20, -20],
+          [20, 20],
+          [-20, 20],
+        ],
+      },
+    } as unknown as SiteNode
+
+    const nodes = {
+      [siteId]: siteNode,
+      bldg_1: {
+        id: 'bldg_1',
+        type: 'building',
+        position: [0, 0, 0],
+        rotation: [0, 0, 0],
+        children: ['level_0'],
+      },
+      level_0: {
+        id: 'level_0',
+        type: 'level',
+        baseElevation: 0,
+        height: 2.8,
+        level: 0,
+        children: ['slab_1'],
+      },
+      slab_1: {
+        id: 'slab_1',
+        type: 'slab',
+        parentId: 'level_0',
+        polygon: [
+          [-5, -5],
+          [5, -5],
+          [5, 5],
+          [-5, 5],
+        ],
+        elevation: 0.05,
+        thickness: 0.05, // underside is 0.0
+      },
+    } as never
+
+    useScene.setState({ nodes, rootNodeIds: [siteId] } as never)
+
+    // Terrain in a hollow at Y = -1.5 m
+    flattenSite(siteNode, -1.5)
+    const siteWithTerrain = useScene.getState().nodes[siteId] as SiteNode
+
+    excavateSiteToModel(siteWithTerrain, useScene.getState().nodes)
+
+    const updatedSite = useScene.getState().nodes[siteId] as SiteNode
+    const field = terrainFieldOf(updatedSite)!
+    // Under the slab: terrain should remain at -1.5 m rather than being lifted to 0.0 m
+    expect(heightAt(field, 0, 0)).toBeCloseTo(-1.5, 2)
+  })
+
+  test('multi-level overlapping slabs excavate to the lowest underside elevation', () => {
+    const siteNode: SiteNode = {
+      id: siteId,
+      type: 'site',
+      children: ['bldg_1'],
+      polygon: {
+        type: 'polygon',
+        points: [
+          [-20, -20],
+          [20, -20],
+          [20, 20],
+          [-20, 20],
+        ],
+      },
+    } as unknown as SiteNode
+
+    const nodes = {
+      [siteId]: siteNode,
+      bldg_1: {
+        id: 'bldg_1',
+        type: 'building',
+        position: [0, 0, 0],
+        rotation: [0, 0, 0],
+        children: ['level_0', 'level_basement'],
+      },
+      level_0: {
+        id: 'level_0',
+        type: 'level',
+        baseElevation: 0,
+        height: 2.8,
+        level: 0,
+        children: ['slab_level0'],
+      },
+      level_basement: {
+        id: 'level_basement',
+        type: 'level',
+        baseElevation: -2.5,
+        height: 2.5,
+        level: -1,
+        children: ['slab_basement'],
+      },
+      slab_level0: {
+        id: 'slab_level0',
+        type: 'slab',
+        parentId: 'level_0',
+        polygon: [
+          [-8, -8],
+          [8, -8],
+          [8, 8],
+          [-8, 8],
+        ],
+        elevation: 0.05,
+        thickness: 0.05, // underside is 0.0
+      },
+      slab_basement: {
+        id: 'slab_basement',
+        type: 'slab',
+        parentId: 'level_basement',
+        polygon: [
+          [-4, -4],
+          [4, -4],
+          [4, 4],
+          [-4, 4],
+        ],
+        elevation: 0.05,
+        thickness: 0.1, // underside is -2.5 + (0.05 - 0.1) = -2.55
+      },
+    } as never
+
+    useScene.setState({ nodes, rootNodeIds: [siteId] } as never)
+    flattenSite(siteNode, 2.0)
+    const siteWithTerrain = useScene.getState().nodes[siteId] as SiteNode
+
+    excavateSiteToModel(siteWithTerrain, useScene.getState().nodes)
+
+    const updatedSite = useScene.getState().nodes[siteId] as SiteNode
+    const field = terrainFieldOf(updatedSite)!
+
+    // Overlapping area (basement footprint): excavated down to -2.55 m
+    expect(heightAt(field, 0, 0)).toBeCloseTo(-2.55, 2)
+
+    // Level 0 only area (x = 6, z = 6): excavated down to 0.0 m
+    expect(heightAt(field, 6, 6)).toBeCloseTo(0.0, 2)
+
+    // Outside both slabs (x = 12, z = 12): stays at 2.0 m
+    expect(heightAt(field, 12, 12)).toBeCloseTo(2.0, 2)
+  })
+
+  test('excavates terrain along the slope gradient under a sloped slab ramp', () => {
+    const siteNode = site([
+      [-15, -15],
+      [15, -15],
+      [15, 15],
+      [-15, 15],
+    ])
+    const siteId = siteNode.id
+
+    const nodes = {
+      [siteId]: siteNode,
+      building_1: {
+        id: 'building_1',
+        type: 'building',
+        parentId: siteId,
+        children: ['level_0'],
+        position: [0, 0, 0],
+      },
+      level_0: {
+        id: 'level_0',
+        type: 'level',
+        parentId: 'building_1',
+        baseElevation: 0,
+        height: 2.8,
+        level: 0,
+        children: ['slab_ramp'],
+      },
+      slab_ramp: {
+        id: 'slab_ramp',
+        type: 'slab',
+        parentId: 'level_0',
+        polygon: [
+          [0, -2],
+          [10, -2],
+          [10, 2],
+          [0, 2],
+        ],
+        elevation: 0.2,
+        thickness: 0.1,
+        slopeAngle: 5.710593, // tan = 0.1 (rises 1.0m over 10m)
+        slopeDirection: 0, // along +X
+      },
+    } as never
+
+    useScene.setState({ nodes, rootNodeIds: [siteId] } as never)
+    flattenSite(siteNode, 3.0)
+    const siteWithTerrain = useScene.getState().nodes[siteId] as SiteNode
+
+    excavateSiteToModel(siteWithTerrain, useScene.getState().nodes)
+
+    const updatedSite = useScene.getState().nodes[siteId] as SiteNode
+    const field = terrainFieldOf(updatedSite)!
+
+    // At x=0 (ramp start): underside is 0.2 - 0.1 = 0.1m
+    expect(heightAt(field, 0, 0)).toBeCloseTo(0.1, 1)
+
+    // At x=5 (ramp midpoint): underside is 0.1 + 5 * 0.1 = 0.6m
+    expect(heightAt(field, 5, 0)).toBeCloseTo(0.6, 1)
+
+    // At x=10 (ramp top): underside is 0.1 + 10 * 0.1 = 1.1m
+    expect(heightAt(field, 10, 0)).toBeCloseTo(1.1, 1)
+
+    // Outside the ramp at x=13: stays at 3.0m
+    expect(heightAt(field, 13, 0)).toBeCloseTo(3.0, 1)
+  })
+})
+
+
